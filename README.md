@@ -1,6 +1,8 @@
 # Puppet - May 2024
 
-Web based conversational interfaces using 3d embodied puppets driven by llms with voice, facial and body performances leveraging open source third party components.
+Real time web based conversational interfaces using 3d embodied puppets driven by llms with voice, facial and body performances leveraging open source third party components.
+
+Note that I fully expect this work to be obsolete within a few months. There is a rapidly growing body of work around the orchestration of embodied full body performances. We should see rapid evolution of the space within the next year or so - for example see the NVIDIA Audio2Face (https://youtu.be/DGEIRuXP8hQ?si=CNWY3I73q_SuK0YF) and ongoing research into body performances ( https://openhuman-ai.github.io/awesome-gesture_generation/ ).
 
 ## Features (legend: * = done and - = not done)
 
@@ -102,7 +104,7 @@ Web based conversational interfaces using 3d embodied puppets driven by llms wit
 * body performances
 
 	- Puppet supports a simple randomized IK based "speak with hands" strategy that while simple is good enough for simple avatars
-	- Other resources (not supported yet):
+	- Other resources:
 		- https://openhuman-ai.github.io/awesome-gesture_generation/
 		- https://medium.com/human-centered-ai/chi24-preprint-collection-hci-ai-0caac4b0b798
 		- https://www.youtube.com/watch?v=LNidsMesxSE ... a detailed video on the state of the art in video-game animation blending

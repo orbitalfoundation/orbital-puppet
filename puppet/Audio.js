@@ -19,14 +19,14 @@ export class Audio {
 
     // Audio context and playlist
     this.audioCtx = new AudioContext();
-    this.audioSpeechSource = this.audioCtx.createBufferSource();
+    this.audioSource = this.audioCtx.createBufferSource();
     this.audioBackgroundSource = this.audioCtx.createBufferSource();
     this.audioBackgroundGainNode = this.audioCtx.createGain();
-    this.audioSpeechGainNode = this.audioCtx.createGain();
+    this.audioGainNode = this.audioCtx.createGain();
     this.audioReverbNode = this.audioCtx.createConvolver();
     this.setReverb(null); // Set dry impulse as default
     this.audioBackgroundGainNode.connect(this.audioReverbNode);
-    this.audioSpeechGainNode.connect(this.audioReverbNode);
+    this.audioGainNode.connect(this.audioReverbNode);
     this.audioReverbNode.connect(this.audioCtx.destination);
     this.audioPlaylist = [];
 
@@ -161,12 +161,12 @@ export class Audio {
 
   /**
   * Set audio gain.
-  * @param {number} speech Gain for speech, if null do not change
+  * @param {number} Gain, if null do not change
   * @param {number} background Gain for background audio, if null do not change
   */
-  setMixerGain( speech, background ) {
-    if ( speech !== null ) {
-      this.audioSpeechGainNode.gain.value = speech;
+  setMixerGain( value, background ) {
+    if ( value !== null ) {
+      this.audioGainNode.gain.value = value;
     }
     if ( background !== null ) {
       this.audioBackgroundGainNode.gain.value = background;
@@ -179,40 +179,46 @@ export class Audio {
   * @param {delay} 
   */
 
-  async playAudioBuffer(audio,delay=100,ended=null) {
+  async play(audio,delay=100,callback=null) {
 
-      // If Web Audio API is suspended, try to resume it
-      if ( this.audioCtx.state === "suspended" ) {
-        const resume = this.audioCtx.resume();
-        const timeout = new Promise((_r, rej) => setTimeout(() => rej("p2"), 1000));
-        await Promise.race([resume, timeout]);
+      try {
+
+        // If Web Audio API is suspended, try to resume it
+        if ( this.audioCtx.state === "suspended" ) {
+          const resume = this.audioCtx.resume();
+          const timeout = new Promise((_r, rej) => setTimeout(() => rej("p2"), 1000));
+          await Promise.race([resume, timeout]);
+        }
+
+    	  if(typeof audio === 'AudioBuffer') {
+    	  	// use as is
+    	  } else if ( Array.isArray(audio) ) {
+          // Convert from PCM samples
+          let buf = this.concatArrayBuffers(audio);
+          audio = this.pcmToAudioBuffer(buf);
+        } else if(typeof audio === 'string') {
+    		  const buf = this.b64ToArrayBuffer(audio)
+    		  audio = await this.audioCtx.decodeAudioData(buf)
+        } else {
+        	// unsure what to do in this case
+        }
+
+        // Create audio source
+        this.audioSource = this.audioCtx.createBufferSource();
+        this.audioSource.buffer = audio;
+        this.audioSource.playbackRate.value = 1 / this.animSlowdownRate;
+        this.audioSource.connect(this.audioGainNode);
+        this.audioSource.addEventListener('ended', () => {
+          this.audioSource.disconnect();
+          if(callback)callback();
+        }, { once: true });
+
+        // Play
+        this.audioSource.start(delay/1000);
+      } catch(err) {
+        console.error("puppet audio playback failed!",err,audio)
+        if(callback) callback()
       }
-
-  	  if(typeof audio === 'AudioBuffer') {
-  	  	// use as is
-  	  } else if ( Array.isArray(audio) ) {
-        // Convert from PCM samples
-        let buf = this.concatArrayBuffers(audio);
-        audio = this.pcmToAudioBuffer(buf);
-      } else if(typeof audio === 'string') {
-  		  const buf = this.b64ToArrayBuffer(audio)
-  		  audio = await this.audioCtx.decodeAudioData(buf)
-      } else {
-      	// unsure what to do in this case
-      }
-
-      // Create audio source
-      this.audioSpeechSource = this.audioCtx.createBufferSource();
-      this.audioSpeechSource.buffer = audio;
-      this.audioSpeechSource.playbackRate.value = 1 / this.animSlowdownRate;
-      this.audioSpeechSource.connect(this.audioSpeechGainNode);
-      this.audioSpeechSource.addEventListener('ended', () => {
-        this.audioSpeechSource.disconnect();
-        if(ended)ended();
-      }, { once: true });
-
-      // Play
-      this.audioSpeechSource.start(delay/1000);
   }
 
 }

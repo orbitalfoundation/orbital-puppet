@@ -1,13 +1,23 @@
 
-import { animMoods } from './talkinghead/modules/anim-moods.mjs'
-import { lipsyncConvert } from './talkinghead/modules/lipsync-queue.mjs'
+const BREAK_DURATION = 100
+
+import { animMoods } from '../talkinghead/modules/anim-moods.mjs'
+import { lipsyncConvert } from '../talkinghead/modules/lipsync-queue.mjs'
 
 const clamp = (num, a, b) => Math.max(Math.min(num, Math.max(a, b)), Math.min(a, b));
 
-export class Face {
+import { PuppetBody } from './PuppetBody.js'
 
-	// a list of bones that have morph targets
-	parts = []
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// puppet face focused rigging support
+//
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export class PuppetFace extends PuppetBody {
+
+	// a list of bones that have morph targets - these should be on the face/head
+	morphable = []
 
 	// an optional helper table of english names to an array of indexes for bone morph targets such as "mouthSmile" : [ 23,32 ] or Mouth_Smile_L and Mouth_Smile_R
 	dictionary = {}
@@ -24,21 +34,40 @@ export class Face {
 	// an idea (being explored) of overall relaxation so that when sequences are done the entire puppet face can be gently brought to rest
 	relaxation = 0
 
+	// reallusion rig?
+	reallusion = false
+
 	// vrm hint
 	// see blender-puppet-rpm-to-vrm.py which injects rpm target names into vrm rigs
 	vrm = null
 
-	constructor(parts) {
-		this.node = parts.node
-		this.head = parts.head
-		this.camera = parts.camera
-		this.vrm = parts.vrm
-		this.left = parts.leftEye
-		this.right = parts.rightEye
-		this._rewrite_bones_and_morph_targets(this.node)
-		if(parts.emotion) {
-			this._emote(parts.emotion)
+	async load(config) {
+
+		await super.load(config)
+
+		this.node = config.node
+		this.vrm = config.vrm
+		this.camera = config.camera
+		this.gazelimit = config.gazelimit
+		this.gazeanim = config.gazeanim
+
+		this._morphable_init(this.node,this.vrm)
+
+		// @todo cannot animate reallusion bodies yet because body bones are not remapped
+
+		// pull out head and eyes by hand
+		this.head = this.bones[config.headname || "Head"]
+		this.left = this.bones["LeftEye"]
+		this.right = this.bones["RightEye"]
+
+		// estimate eye height
+		this.eyey = this.left ? this.left.position.y : 1.7
+
+		// perform an animation right now if any
+		if(config.emotion) {
+			this._emote(config.emotion)
 		}
+
 	}
 
 	///
@@ -47,12 +76,14 @@ export class Face {
 	/// audio will already have been started in sync with this performance
 	///
 
-	perform(perf) {
+	face_start_performance(perf) {
+
 		// an emotion can be specified
 		if(perf.emotion) {
 			this._emote(perf.emotion)
 		}
-		// actions replace emotions as a concept there can be multiple - they may not hook up to anything
+
+		// try treat actions as facial emotions
 		if(perf.actions) {
 			perf.actions.forEach( (action) => {
 				this._emote(action)
@@ -63,7 +94,8 @@ export class Face {
 			const o = lipsyncConvert(perf.whisper,"en")
 			this.sequence = o.anim || []
 
-			// add a fudge factor @todo remove in lipsyncConvert
+			// add a fudge factor
+			// @todo remove in lipsyncConvert
 			// set relaxation time in future
 			const time = performance.now()
 			for(const item of this.sequence) {
@@ -77,9 +109,10 @@ export class Face {
 
 	///
 	/// update face over time
+	/// @todo passing the animation is a bit sloppy - this level of engine should have direct access
 	///
 
-	update(animation,time,delta) {
+	face_update(animation,time,delta) {
 
 		// fow now use built in time
 		time = performance.now()
@@ -88,9 +121,9 @@ export class Face {
 		this._blink(time,delta)
 
 		// gaze during the default context - @todo later improve context to be more general
-		if(animation === 'default') {
+//		if(!this.gazeanim || this.gazeanim === animation) {
 			this._gaze(time,delta)
-		}
+//		}
 
 		// if relaxing then relax - this is experimental - may change approach
 		if(this.relaxation < time ) {
@@ -171,14 +204,14 @@ export class Face {
 	//
 
 	_emote(emotion) {
-		console.log('puppet face - trying to do an emotion',emotion)
+		//console.log('puppet face - trying to do an emotion',emotion)
 		if(!emotion || !emotion.length) return
 		const fields = animMoods[emotion.toLowerCase()]
 		if(!fields || !fields.baseline) return
 		Object.entries(fields.baseline).forEach(([k,v]) => {
 			this.targets[k] = v
 		})
-		// hold face for a while as a test
+		// hold face for a while as a test @todo this feels a bit artificial
 		this.relaxation = Math.max( this.relaxation, performance.now() + 3000 )
 	}
 
@@ -191,7 +224,14 @@ export class Face {
 		const camera = this.camera
 		const body = this.node
 		const head = this.head
-		if(!head || !camera || !body) return
+		if(!body || !camera) return
+
+		if(body && !head) {
+			//const m = new THREE.Matrix4().lookAt(camera.position, body.position, body.up)
+			//const q = new THREE.Quaternion().setFromRotationMatrix(m)
+			//body.quaternion.slerp(q, 0.07)
+			return
+		}
 
 		const left = this.left
 		const right = this.right
@@ -201,29 +241,27 @@ export class Face {
 		const angle = bodyForwardWorld.angleTo(headToCamera)
 
 		const targetQuaternion = new THREE.Quaternion()
-
-		if(angle<1) {
+		const gazelimit = this.gazelimit || 1
+		if(angle<gazelimit) {
 			const targetPosition = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld)
 			const headPosition = new THREE.Vector3().setFromMatrixPosition(head.matrixWorld)
 			const m = new THREE.Matrix4().lookAt(targetPosition, headPosition, head.up)
 			targetQuaternion.setFromRotationMatrix(m)
-			const parentQuaternion = new THREE.Quaternion().copy(body.getWorldQuaternion(new THREE.Quaternion()))
-			targetQuaternion.premultiply(parentQuaternion.invert())
+			const bodyQuaternion = new THREE.Quaternion().copy(body.getWorldQuaternion(new THREE.Quaternion()))
+			targetQuaternion.premultiply(bodyQuaternion.invert())
+			head.quaternion.slerp(targetQuaternion, 0.07)
 			if(left && right) {
 				left.lookAt(targetPosition)
 				right.lookAt(targetPosition)
 			}
 	    } else {
+			head.quaternion.slerp(targetQuaternion, 0.07)
+			// @todo there seems to be some kind of relative motion for the body parts
 			if(left && right) {
 				left.quaternion.set(0,0,0,1)
 				right.quaternion.set(0,0,0,1)
 			}
 	    }
-		head.quaternion.slerp(targetQuaternion, 0.07)
-
-		// for rpm rigs i 'steal' the head - @todo should only do this if in a default animation mode
-		this.head.name = "head-taken"
-
 	}
 
 
@@ -318,7 +356,7 @@ export class Face {
 			// set numerical targets for rpm and others
 			const group = this.dictionary[k]
 			if(!group) return
-			this.parts.forEach(part=>{
+			this.morphs.forEach(part=>{
 				group.forEach(index => {
 					part.morphTargetInfluences[index] = v
 				})
@@ -327,39 +365,39 @@ export class Face {
 	}
 
 	//
-	// setup node parts and targets
+	// morph target setup
 	//
-	// look for rpm or reallusion rig parts that have morph targets
-	// remember all those parts because we will want to write to their morph targets
-	// also scavenge all of the individual english -> numeric bindings into our own dictionary
+	// my choreography system uses rpm part names
 	//
-	// this choreography system uses rpm part names, but may have to write to reallusion targets in some cases
-	// in this case rewrite all of the rpm targets to the dictionary but use reallusion target values
+	// vrm does not use a dictionary - so there is very little to do here...
+	// also please convert your vrms using blender-puppet-rpm-to-vrm.py
 	//
-	// @todo later deprecate the reallusion rewriting in favor of a blender script that will do it there
+	// reallusion facial morph targets are remapped on the fly for now
+	// @note later may deprecate this feature and require users to pre-bake their reallusion rigs
 	//
 
-	_rewrite_bones_and_morph_targets(node) {
+	_morphable_init(node,vrm) {
 
 		// reset
 
-		const parts = this.parts = []
 		this.targets = {}
 		this.dirty = {}
-		const dictionary = this.dictionary = {}
 		this.sequence = []
 		this.relaxation = 0
 
-		// vrm doesn't need to do any work in part due to art asset pipeline rewriting - see blender-puppet-rpm-to-vrm.py
-		if(node._vrm) {
+		// vrm doesn't need to do any work in part due to art asset pipeline improvements
+		// please convert your vrms using blender-puppet-rpm-to-vrm.py
+		if(vrm) {
 			//console.log("puppet face - appears to be a vrm - no dictionary needed")
+			this.morphs = null
 			this.dictionary = null
 			return
 		}
 
-		// rpm and reallusion rigs do some work to have indexed lookups to reduce lookup costs later
-		// visit every bone in the body looking for bones that have morph targets and remember them
-		let reallusion = false
+		const morphs = this.morphs = []
+		const dictionary = this.dictionary = {}
+
+		// find bones participating in facial expressions
 
 		node.traverse((part) => {
 
@@ -368,36 +406,37 @@ export class Face {
 				return
 			}
 
-			// this bone has some morph targets - let's remember it
-			parts.push(part)
-
 			// also may as well detect if this is an oculus/arkit/rpm rig based on the naming - helpful to know
 			if(part.morphTargetDictionary['viseme_sil'] !== undefined) {
-				//console.log("puppet face - found is rpm",part.name)
+				if(this.reallusion) {
+					console.warn("puppet face - inconsistent bone naming",part.name)
+				}
 			}
 			else if(part.morphTargetDictionary["EE"] !== undefined) {
-				//console.log("puppet face - found is reallusion",part.name)
-				reallusion = true
+				if(!this.reallusion) {
+					console.warn("puppet face - reallusion visemes but not reallusion body?",part.name)
+				}
 			}
 
+			// this bone has some morph targets - let's remember it
+			morphs.push(part)
 		})
 
-		// visit every bone and build a dictionary of morph target names to index lookups; these are hopefully the same between bones
+		// visit every morph and build a dictionary of morph target names to index lookups; these are hopefully the same between bones
 		// written as small groups or arrays so that support for reallusion array remaps is simpler
 
-		parts.forEach(part => {
+		morphs.forEach(part => {
 			Object.entries(part.morphTargetDictionary).forEach( ([k,v]) => {
 				//console.log("puppet face - rpm morph target",k,v)
 				dictionary[k]=[v]
 			})
 		})
 
-		// reallusion rigs need to be remapped for now - later art pipeline can add rpm style named morph targets
-		// visit all bones again if reallusion, and inject a remapped dictionary of morph target lookups so we can drive reallusion rigs
+		// visit all targets again if reallusion, and inject a remapped dictionary of morph target lookups so we can drive reallusion rigs
 		// we support a concept of a single morph target such as cheekPuff mapping to cheek Puff Left and cheek Puff Right
 
-		if(reallusion) {
-			Object.entries(retargeting).forEach( ([k,v]) => {
+		if(this.reallusion) {
+			Object.entries(RetargetOculusARKitToReallusion).forEach( ([k,v]) => {
 				if(!Array.isArray(v)) {
 					const t = dictionary[v]
 					if(t) {
@@ -420,143 +459,5 @@ export class Face {
 				}
 			})
 		}
-
 	}
-
 }
-
-//
-// retargeting rpm to reallusion support
-// for vrm rigs support is added in the art pipeline so that this is not needed
-// @todo add support to reallusion pipeline as well so that this support is not needed here and then delete this
-//
-
-const retargeting = {
-
-	//viseme_sil: undefined
-	viseme_PP: 'B_M_P',
-	viseme_FF: 'F_V',
-	viseme_TH: 'TH',
-	viseme_DD: 'T_L_D_N',
-	viseme_kk: 'K_G_H_NG',
-	viseme_CH: 'Ch_J',
-	viseme_SS: 'S_Z',
-	viseme_nn: 'T_L_D_N',
-	viseme_RR: 'R',
-	viseme_aa: 'Ah',
-	viseme_E: 'EE',
-	viseme_I: 'IH',
-	viseme_O: 'Oh',
-	viseme_U: 'W_OO',
-
-	// undefined:AE
-	// undefined:Er
-
-	browDownLeft:'Brow_Drop_Left',
-	browDownRight:'Brow_Drop_Right',
-	browInnerUp: [ 'Brow_Raise_Inner_Left', 'Brow_Raise_Inner_Right' ],
-	browOuterUpLeft:'Brow_Raise_Outer_Left',
-	browOuterUpRight:'Brow_Raise_Outer_Right',
-
-	// : 'Brow_Raise_Left',
-	// : 'Brow_Raise_Right',
-
-	cheekPuff: [ 'Cheek_Blow_L', 'Cheek_Blow_R' ],
-	cheekSquintLeft:'Cheek_Raise_L',
-	cheekSquintRight:'Cheek_Raise_R',
-
-	// : Cheeks_Suck,
-
-	eyeBlinkLeft:'Eye_Blink_L',
-	eyeBlinkRight:'Eye_Blink_R',
-	eyeSquintLeft:'Eye_Squint_L',
-	eyeSquintRight:'Eye_Squint_R',
-	eyeWideLeft:'Eye_Wide_L',
-	eyeWideRight:'Eye_Wide_R',
-
-	//eyeLookDownLeft: undefined,
-	//eyeLookDownRight: undefined,
-	//eyeLookInLeft: undefined,
-	//eyeLookInRight: undefined,
-	//eyeLookOutLeft: undefined,
-	//eyeLookOutRight: undefined,
-	//eyeLookUpLeft: undefined,
-	//eyeLookUpRight: undefined,
-
-	// : 'Eyes_Blink',
-
-	eyesClosed:[ 'Eye_Blink_L', 'Eye_Blink_R' ],
-
-	// eyesLookUp: undefined,
-	// eyesLookDown: undefined,
-
-	//jawForward:undefined,
-	//jawLeft:undefined,
-	//jawOpen:undefined,
-	//jawRight:undefined,
-
-	// mouthClose: undefined,
-
-	// : Mouth_Blow
-	// : Mouth_Bottom_Lip_Bite
-	// : Mouth_Bottom_Lip_Down
-	// : Mouth_Bottom_Lip_Trans
-	mouthRollLower:'Mouth_Bottom_Lip_Under',
-	mouthDimpleLeft:'Mouth_Dimple_L',
-	mouthDimpleRight:'Mouth_Dimple_R',
-	// : Mouth_Down
-	mouthFrownLeft:'Mouth_Frown_L',
-	mouthFrownRight:'Mouth_Frown_R',
-	mouthLeft: 'Mouth_L',
-	// : Mouth_Lips_Jaw_Adjust
-	// : Mouth_Lips_Open
-	// : Mouth_Lips_Part
-	// : Mouth_Lips_Tight
-	// : Mouth_Lips_Tuck
-	mouthOpen:'Mouth_Open',
-	//Mouth_Plosive
-	mouthPucker:'Mouth_Pucker',
-	mouthFunnel:'Mouth_Pucker_Open',
-	mouthRight: 'Mouth_R',
-	// : Mouth_Skewer
-
-	// mouthSmile:'Mouth_Smile',
-	mouthSmile: [ 'Mouth_Smile_L', 'Mouth_Smile_R' ], // works for both rpm and reallusion
-
-	mouthSmileLeft:'Mouth_Smile_L',
-	mouthSmileRight:'Mouth_Smile_R',
-	// : Mouth_Snarl_Lower_L
-	// : Mouth_Snarl_Lower_R
-	// : Mouth_Snarl_Upper_L
-	// : Mouth_Snarl_Upper_R
-	mouthRollUpper:'Mouth_Top_Lip_Under',
-	// : 'Mouth_Top_Lip_Up'
-	//Mouth_Up
-	//Mouth_Widen
-	mouthStretchLeft: 'Mouth_Widen_Sides',
-	mouthStretchRight: 'Mouth_Widen_Sides',
-
-	// mouthShrugLower :
-	// mouthShrugUpper :
-	// mouthPressLeft :
-	// mouthPressRight :
-	// mouthLowerDownLeft :
-	// mouthLowerDownRight :
-	// mouthUpperUpLeft :
-	// mouthUpperUpRight :
-
-
-	noseSneerLeft: 'Nose_Flank_Raise_L',
-	noseSneerRight: 'Nose_Flank_Raise_R',
-	// undefined:'Nose_Flanks_Raise',
-	// undefined:'Nose_Nostrils_Flare',
-	// undefined:'Nose_Scrunch',
-
-	// tongueOut: undefined,
-
-}
-
-
-
-
-

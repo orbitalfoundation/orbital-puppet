@@ -4,6 +4,9 @@ import { puppet_reason } from './puppet-reason.js'
 ///
 /// An orbital specific shim around the puppet converse logic - catch text chatter and pass to the puppet llm
 ///
+/// If this is started on a server then the llm will be called from a server and audio is broadcast
+/// If this is run on a client then the llm will be called from the client - risks exposing api keys
+///
 
 const resolve = async function (blob,sys) {
 
@@ -21,7 +24,7 @@ const resolve = async function (blob,sys) {
 	}
 	const entity = entities[0]
 
-	// allow puppet to reason about message and do performances
+	// puppet chews on an prompt and spits out a bunch of performances
 	puppet_reason(entity.puppet,text,(performance)=>{
 		performance.targetuuid = uuid
 		sys.resolve({performance})

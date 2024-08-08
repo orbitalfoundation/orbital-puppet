@@ -20,12 +20,15 @@ function extract_tokens(str="") {
 ///
 /// Goals:
 ///
+/// 	- this code can run on server OR client and will broadcast performances to all clients
 ///		- this source file is intended to be modular/reusable and independent of any specific larger project or framing
 ///		- given a prompt, build out speech and visemes for a puppet to playback in 3d
 ///		- may call a reasoning engine if desired
 ///		- may call tts
 ///		- may even call an stt to get word timing
 ///		- may generates phonemes / visemes and whatnot
+///
+/// @note keys will be exposed if this is run on client - best to run on server side
 ///
 
 export async function puppet_reason(scope,prompt,callback) {
@@ -37,7 +40,7 @@ export async function puppet_reason(scope,prompt,callback) {
 		scope.conversationCounter++
 	}
 
-	console.log("puppet reason - got prompt",prompt)
+	//console.log("puppet reason - got prompt",prompt)
 
 	let text = null
 
@@ -101,10 +104,6 @@ export async function puppet_reason(scope,prompt,callback) {
 			if(actions && actions.length) {
 				blob.text = results
 				blob.actions = actions
-				console.log("puppet reason action results")
-				console.log("... actions ", actions )
-				console.log("... original ", text )
-				console.log("... rewritten ", results )
 			}
 
 		}
@@ -113,15 +112,18 @@ export async function puppet_reason(scope,prompt,callback) {
 		blob.conversation = scope.conversationCounter
 		blob.segment = segment++
 		blob.segmentsTotal = queue.length
+
 	
 		// tts using openai for now
 		let buffer = null
+		delete blob.audio
+
 		if(blob.text && blob.text.length && scope.tts && scope.tts.bearer == "openai") {
 
 			buffer = await puppet_reason_tts(scope.tts,blob.text)
+
 			if(!buffer) {
 				console.error("puppet reason : failed to talk to tts",blob)
-				delete blob.audio
 				return
 			}
 
@@ -156,7 +158,6 @@ export async function puppet_reason(scope,prompt,callback) {
 			blob.whisper = await puppet_reason_stt(scope.whisper,buffer)
 			if(!blob.whisper) {
 				console.error('puppet reason - failed to get whisper timings')
-				return
 			}
 		}
 
@@ -203,7 +204,6 @@ async function puppet_reason_llm(reason,prompt) {
 		const response = await fetch_wrapper(reason.url,command)
 		if(response.ok) {
 			const json = await response.json()
-			console.log(json)
 			if(reason.bearer === 'openai') {
 				return json.choices[0].message.content
 			} else {

@@ -86,7 +86,7 @@ export const puppet_text_chat_ux = {
 	// the dom element is injected into the paper node so the text_chat_uuid idea is not needed @todo use
 
 	paper: {
-		css: 'position:absolute;bottom:40px;right:10px;width:600px;font-size:2em;border:3px solid red;z-index:111000',
+		css: 'position:absolute;bottom:40px;right:10px;width:90%;font-size:2em;border:3px solid red;z-index:111000',
 		children: [
 			{
 				css: 'display:none;width:100%;padding-left:4px;height:190px;background:rgba(200, 54, 54, 0.5)',
@@ -149,7 +149,11 @@ export const puppet_text_chat_ux = {
 ///////////////////////////////////////////////////////////////////////////
 
 ///
-/// busy poll to see if puppets are speaking and if so make sure voice is disabled
+/// @todo perhaps puppets can publish a 'disallow voice until' based on active utterances
+/// or they can publish if they are busy
+/// we really shouldn't peek into the internals of other things
+///
+/// for now busy poll to see if puppets are speaking and if so make sure voice is disabled
 /// also for now only allow voice if text window is open also
 /// may need some kind of squelch or push to talk - especially in multiplayer - this all needs thought @todo
 ///
@@ -164,7 +168,7 @@ export const voice_recognizer_observer = {
 		const entities = sys.query({puppet:true})
 		voice_allowed = true
 		entities.forEach( (entity) => {
-			if(entity.puppet && entity.puppet._puppet && entity.puppet._puppet.occupied) {
+			if(entity.puppet && entity.puppet.busy) {
 				voice_allowed = false
 			}
 		})
@@ -177,6 +181,7 @@ export const voice_recognizer_observer = {
 }
 
 let recognition = null
+let enabled = false
 
 function voice_recognizer_set(sys,allow = true ) {
 	try {
@@ -185,7 +190,6 @@ function voice_recognizer_set(sys,allow = true ) {
 			recognition.continuous = true
 			recognition.interimResults = true
 			recognition.onresult = function(event) {
-				console.log(event)
 				for (var i = event.resultIndex; i < event.results.length; ++i) {
 					const text = event.results[i][0].transcript
 					if (event.results[i].isFinal && text && text.length) {
@@ -197,8 +201,20 @@ function voice_recognizer_set(sys,allow = true ) {
 				}
 			}
 		}
-		allow ? recognition.start() : recognition.stop()
-		console.log("voice_recognizer state",allow ? "*** listening" : "*** paused","at time",performance.now() * 1000 )
+		if(allow) {
+			// seems to need a bit of time
+			setTimeout( ()=> {
+				if(!enabled) {
+					console.log("observer text voice: listening")
+					recognition.start()
+					enabled = true
+				}
+			},300)
+		} else {
+			console.log("observer text voice: abort")
+			recognition.abort()
+			enabled = false
+		}
 	} catch(err) {
 		console.log('chat widget: speech to text error: ' + err)
 	}

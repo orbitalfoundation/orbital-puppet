@@ -1,90 +1,89 @@
 
-import { Puppet } from './puppet.js'
-
-///
-/// this is an orbital specific wrapper for puppet that watches for important events and sends them to puppet - making a puppet if need be
-///
-/// @todo detect entity deletion and dispose Puppet after this is done - there's currently no de-registration machinery?
-///
+import { PuppetQueue as Puppet } from './puppet/PuppetQueue.js'
 
 export const observer_puppet_new_performance = {
-	resolve: (blob,sys) => {
+	resolve: async (blob,sys) => {
 		if(sys.isServer) return
 		if(blob.tick) return
 		if(!blob.performance) return
+
+		// find database instance of entity that will do performance
 		const entities = sys.query({uuid:blob.performance.targetuuid})
 		if(!entities || entities.length < 1) {
 			console.warn("puppet performance - entity not found yet",blob,entities)
 			return
 		}
+
+		// get puppet
 		const entity = entities[0]
-		const puppet = _puppet_bind(entity)
-		if(puppet) {
+		const instance = await _puppet_bind(entity)
+		if(!instance) {
+			return
+		}
 
-			// stuff a callback into the performance that can be used to start an action in sync with the performance actually starting
-			blob.performance._performance_started_callback = (performance) => {
-				//console.log("puppet performance - starting performance")
-				if(blob.performance.actions && blob.performance.actions.length) {
-					const animation = blob.performance.actions[0]
-					console.log("puppet performance - saw an action will try perform it ",animation)
-					sys.resolve({
-						uuid:entity.uuid,
-						volume: {
-							animation
-						}
-					})
+		// @todo if this is a new conversation then must abort previous conversation!
+		// @todo generally also don't play older conversations
+		// @todo probably also handle aborts in general
+
+		// add to queue
+		instance.perform(blob.performance)
+
+		// print to local text window as a convenience for the participant
+		if(blob.performance.text) {
+			sys.resolve({
+				conversation:{
+					sponsorname: entities[0].name,
+					text: blob.performance.text
 				}
-			}
-
-			// stuff the performance onto the list of performances to do - a callback is registered so i know when it starts
-			puppet.performance_append(blob.performance)
-
-			// print to local text window as a convenience for the participant
-			if(blob.performance.audio && blob.performance.text) {
-				sys.resolve({
-					conversation:{
-						sponsorname: entities[0].name,
-						text: blob.performance.text
-					}
-				})
-			}
-
+			})
 		}
 	}
 }
 
 export const observer_puppet_tick = {
-	resolve: (blob,sys) => {
+	resolve: async (blob,sys) => {
 		if(sys.isServer) return
 		if(!blob.tick) return
 		const entities = sys.query({puppet:true,volume:true})
-		entities.forEach( (entity) => {
-			const puppet = _puppet_bind(entity)
-			if(!puppet) return
-			puppet.performance_update(entity.volume.animation,blob.time,blob.delta)
-		})
+		for(const entity of entities) {
+			const instance = await _puppet_bind(entity)
+			if(!instance) return
+			// there can be small delays that i want to prevent collisions over here
+			await instance.update(blob.time,blob.delta)
+			// a slight hack - signal if occupied at a higher level - voice detection on/off peeks at this
+			entity.puppet.busy = instance.busy
+		}
 	}
 }
 
-const _puppet_bind = (entity) => {
-	if(!entity.puppet || !entity.volume || !entity.volume._node) {
+
+async function _puppet_bind(entity) {
+
+	if(!entity || !entity.puppet || !entity.volume || !entity.volume._node) {
 		//console.warn("puppet performance - invalid target entity",entity)
 		return null
 	}
-	if(!entity.puppet._puppet) {
-		const node = entity.volume._node
-		const parts = {
-			node,
-			vrm: node._vrm,
-			camera : entity.volume._camera,
-			head: node.getObjectByName("Head") || node.getObjectByName("Head-Gaze"),
-			leftEye: node.getObjectByName("LeftEye"),
-			rightEye: node.getObjectByName("RightEye"),
-			head: node.getObjectByName("Head"),
-			emotion: 'happy',
-		}
+	const puppet = entity.puppet
+	const volume = entity.volume
 
-		entity.puppet._puppet = new Puppet(parts)
+	if(puppet._instance) {
+		return puppet._instance
 	}
-	return entity.puppet._puppet
+
+	const config = {
+		node : volume._node,
+		vrm: volume._vrm || null,
+		built_in_animations: volume._built_in_animations,
+		animations: volume.animations,
+		animation: volume.animation,
+		headname: volume.headname || null,
+		camera : volume._camera || null,
+		emotion: 'happy',
+		gazelimit: volume.gazelimit,
+		gazeanim: volume.gazeanim,
+	}
+
+	puppet._instance = new Puppet()
+	await puppet._instance.load(config)
+	return puppet._instance
 }
