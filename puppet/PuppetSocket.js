@@ -77,68 +77,67 @@ export class PuppetSocket {
 	}
 
 	buffer = []
-	busy = false
+	busy = 0
 
-	async receive(event) {
+	receive(event=null) {
 
-		// push to a buffer
-		this.buffer.push(event)
+		if(event) {
+			//console.log('puppet socket - push',event,this.buffer.length)
+			this.buffer.push(event)
+		}
 
-		// if buffer is busy then return - hopefully buffer is still being exhausted below
-		if(this.buffer.length>1) {
-			console.warn('puppet socket - noticed buffer busy?',this.busy)
+		if(!this.buffer.length) {
 			return
 		}
-		this.busy = true
 
-		// exhaust buffer
-		while(this.buffer.length) {
-
-			const event = this.buffer.shift()
-
-			// from the server we get back stuff like this:
-			//
-			// isTrusted
-			// bubbles
-			// cancelable
-			// data => actual meat
-			// data.session_id
-			// type 'message'
-
-			try {
-
-				const response = JSON.parse(event.data.toString()) // @todo is this necessary?
-
-				// response.session_id <- could be set to conversation id
-
-				if(!response || response.error || !response.data) {
-					console.error('puppet socket response error - discarding',response)
-					return
-				}
-
-				const term = response.data.token
-
-				if(!term || !term.length) return
-
-				if(term !== '<END>') {
-					this.terms.push(term)
-					if(!term.includes('.') && !term.includes(',') && !term.includes('?')) return
-				}
-
-				const str = this.terms.join('')
-				this.terms = []
-				if(!str.length) return
-				if(this.callback) await this.callback(str)
-
-			} catch(err) {
-				console.error('puppet socket parsing error - discarding',err)
-				return
-			}
+		if(this.busy) {
+			//console.warn('puppet socket - busy',event,this.busy)
+			return
 		}
 
-		this.busy = false
-	}
+		event = this.buffer.shift()
+		//console.log('puppet socket - pull',event)
 
+		let term = null
+		try {
+			const response = JSON.parse(event.data.toString())
+			if(!response || response.error || !response.data) {
+				console.error('puppet socket response error - discarding',response)
+				return this.receive()
+			}
+			term = response.data.token
+		} catch(err) {
+			console.error('puppet socket parsing error - discarding',err)
+			return this.receive()
+		}
+
+		if(!term || !term.length) return this.receive()
+
+		if(term !== '<END>') {
+			this.terms.push(term)
+			if(term=='.' && this.terms.length > 2 && this.terms.at(-2) != ' ' && !isNaN(this.terms.at(-2)) && this.terms.at(-3) != '.') {
+				// detect saying ['499','.','99'] and avoid segmenting here
+				// console.log("puppet socket - detected a number",this.terms.at(-3),this.terms.at(-2), this.terms.at(-1) )
+				return this.receive()
+			}
+			if(!term.includes('.') && !term.includes(',') && !term.includes('?')) return this.receive()
+		}
+
+		const str = this.terms.join('')
+		this.terms = []
+		if(!str.length) return this.receive()
+		//console.log('socket sending',str)
+		if(this.callback) {
+			this.busy++
+			this.callback(str).then(()=>{
+				this.busy--
+				this.receive()
+			}).catch(err => {
+				this.busy--
+				this.receive()
+			})
+		}
+	}
 }
 
 

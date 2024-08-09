@@ -63,7 +63,7 @@ export async function puppetReason(scope,prompt,callback) {
 		}
 		scope.socket.prompt = prompt
 		scope.socket.callback = async (text) => {
-			//console.log('puppet reason socket got',text)
+			console.log('puppet reason socket got',text)
 			await puppetFragment(scope,text,callback)
 		}
 		scope._socket.send(scope.socket)
@@ -80,6 +80,9 @@ export async function puppetReason(scope,prompt,callback) {
 	}
 
 }
+
+lipsyncGetProcessor("en")
+let busy = 0
 
 async function puppetFragment(scope,text,callback) {
 
@@ -103,11 +106,24 @@ async function puppetFragment(scope,text,callback) {
 	// see https://x.com/trydaily/status/1815530613434417241
 	//
 
-	await lipsyncGetProcessor("en")
-
 	let queue = lipsyncQueue(text)
 
+	console.log("puppet reason - fragment queue is", queue,busy)
+
+	if(busy) {
+		console.error('puppet reason - fragment queue overloaded',busy)
+	}
+
+	busy++
+
 	for(const blob of queue) {
+
+		// store a few facts about which performance this is - useful for aborting conversations
+		blob.prompt = scope.prompt
+		blob.conversation = scope.conversationCounter
+		blob.segment = scope.segmentCounter++
+		blob.global = globalsegment++
+		console.log('puppet reason - sending blob',blob.text,blob.conversation,blob.segment,blob.global,queue.length)
 
 		// the lipsync queue returns an array of text objects or nothing
 		if(!blob.text || !blob.text.length) {
@@ -154,7 +170,7 @@ async function puppetFragment(scope,text,callback) {
 			const buffer = await puppet_reason_tts(scope.tts,blob.text)
 
 			if(!buffer) {
-				console.error("puppet reason : failed to talk to tts",blob)
+				console.error("puppet reason - failed to talk to tts",blob)
 				return
 			}
 
@@ -183,15 +199,11 @@ async function puppetFragment(scope,text,callback) {
 			}
 		}
 
-		// store a few facts about which performance this is - useful for aborting conversations
-		blob.prompt = scope.prompt
-		blob.conversation = scope.conversationCounter
-		blob.segment = scope.segmentCounter++
-		blob.global = globalsegment++
-		//console.log('puppt reason sending blob',blob,blob.conversation,blob.segment)
 
 		callback(blob)
 	}
+
+	busy--
 
 }
 
@@ -434,24 +446,6 @@ async function puppet_reason_stt(whisper_args,bufferArray) {
 			whisperAudio.wdurations.push( 1000 * (x.end - x.start) );
 		})
 
-		// @todo from talking heads - signaling animations need to be not functions - just don't do these here ideally
-		/*
-		// Add timed callback markers to the audio object
-		const startSegment = async () => {
-			// Look at the camera
-			head.lookAtCamera(500);
-			head.speakWithHands();
-		};
-
-		// Add timed callback markers to the whisperAudio object
-		json.segments.forEach( x => {
-			if ( x.start > 2 && x.text.length > 10 ) {
-				whisperAudio.markers.push( startSegment );
-				whisperAudio.mtimes.push( 1000 * x.start - 1000 );
-			}
-		});
-		*/
-
 		return whisperAudio
 
 	} catch(err) {
@@ -467,7 +461,7 @@ async function puppet_reason_stt(whisper_args,bufferArray) {
 
 
 //
-// hack code to fix up how numbers are said
+// hack code to fix up how dollar amounts are said
 //
 
 function numberToWords(num) {
