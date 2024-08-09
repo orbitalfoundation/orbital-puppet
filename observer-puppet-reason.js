@@ -1,11 +1,11 @@
 
-import { puppet_reason } from './puppet-reason.js'
+import { puppetReason } from './puppet/PuppetReason.js'
 
 ///
-/// An orbital specific shim around the puppet converse logic - catch text chatter and pass to the puppet llm
+/// @summary An orbital observer - watches for puppet conversations and generates llm driven tts responses - runs on client or server
 ///
-/// If this is started on a server then the llm will be called from a server and audio is broadcast
-/// If this is run on a client then the llm will be called from the client - risks exposing api keys
+/// @param blob - raw blob from orbital system
+/// @param sys - back pointer to sys itself
 ///
 
 const resolve = async function (blob,sys) {
@@ -16,18 +16,26 @@ const resolve = async function (blob,sys) {
 	const uuid = blob.conversation.npcuuid
 	const text = blob.conversation.text
 
+	// any text?
+	if(!text || !text.length) {
+		console.error('puppet reason observer - nothing to reason about')
+		return
+	}
+
 	// does the puppet exist?
 	const entities = sys.query({uuid})
 	if(!entities.length || !entities[0].puppet) {
-		console.warn("puppet observer - target not found",uuid)
+		console.warn("puppet reason observer - target not found",uuid)
 		return
 	}
 	const entity = entities[0]
 
 	// puppet chews on an prompt and spits out a bunch of performances
-	puppet_reason(entity.puppet,text,(performance)=>{
+	puppetReason(entity.puppet,text,(performance)=>{
 		performance.targetuuid = uuid
-		sys.resolve({performance})
+		const blob = { performance }
+		if(sys.isServer) blob.network = {} // @todo examine later concepts around local authority - for now only have servers multicast npcs
+		sys.resolve(blob)
 	})
 }
 

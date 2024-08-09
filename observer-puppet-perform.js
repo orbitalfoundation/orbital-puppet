@@ -1,11 +1,20 @@
 
 import { PuppetQueue as Puppet } from './puppet/PuppetQueue.js'
 
+///
+/// @summary orbital observer - watches for new performances and plays them on a 3d puppet in the scene
+/// @param blob - a raw message
+/// @param sys - back pointer to orbital system
+///
+
 export const observer_puppet_new_performance = {
 	resolve: async (blob,sys) => {
 		if(sys.isServer) return
 		if(blob.tick) return
 		if(!blob.performance) return
+
+		// register abort listener - hack
+		detect_abort(sys)
 
 		// find database instance of entity that will do performance
 		const entities = sys.query({uuid:blob.performance.targetuuid})
@@ -21,15 +30,15 @@ export const observer_puppet_new_performance = {
 			return
 		}
 
-		// @todo if this is a new conversation then must abort previous conversation!
-		// @todo generally also don't play older conversations
-		// @todo probably also handle aborts in general
+		// stop?
+		if(blob.performance.stop) {
+			console.log('puppet ordered to stop',blob)
+			instance.stop()
+			return
+		}
 
-		// add to queue
-		instance.perform(blob.performance)
-
-		// print to local text window as a convenience for the participant
-		if(blob.performance.text) {
+		// callback when performing
+		blob.performance.callback = () => {
 			sys.resolve({
 				conversation:{
 					sponsorname: entities[0].name,
@@ -37,8 +46,41 @@ export const observer_puppet_new_performance = {
 				}
 			})
 		}
+
+		// add to queue
+		const added = instance.perform(blob.performance)
 	}
 }
+
+let detect_abort_latched = false
+
+//
+// @summary a helper to allow aborting of conversations - not super elegant
+//
+
+function detect_abort(sys) {
+	if(detect_abort_latched) return
+	detect_abort_latched = true
+	document.addEventListener("keyup", async (e) => {
+		if(e.key !== "Escape") return
+		const entities = sys.query({puppet:true,volume:true})
+		for(const entity of entities) {
+			sys.resolve({
+				uuid:entity.uuid,
+				puppet:{performance:{stop:performance.now()}},
+				network:{}
+			})
+		}
+	})
+}
+
+
+
+///
+/// @summary orbital observer - tick based system to update all 3d puppets every frame - also flags if puppet is busy or not
+/// @param blob - a raw message
+/// @param sys - back pointer to orbital system
+///
 
 export const observer_puppet_tick = {
 	resolve: async (blob,sys) => {
@@ -56,6 +98,10 @@ export const observer_puppet_tick = {
 	}
 }
 
+//
+// @summary helper to bind to 3d puppet body animation support
+// @param pointer to orbital datagram for an entity as a whole with a puppet and a volume component
+//
 
 async function _puppet_bind(entity) {
 

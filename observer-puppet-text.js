@@ -1,19 +1,13 @@
 
-//////////////////////////////////////////////////////////////////////////////////////////////
-///
-/// ux support for text chat box with a bit of history
-///
-///		+ helps with text chat between players and players and between players and npcs
-///		+ integrates with paper and paints a text input dialog
-///		+ integrates lightly with volume for distance detection (useful for npcs)
-///		+ will detect nearest npcs - reducing some of the burden on npcs to figure this out
-///		+ speech to text is enabled or disabled based on if this is open or closed
-///
-//////////////////////////////////////////////////////////////////////////////////////////////
-
 const isServer = typeof window === 'undefined'
 
 let text_chat_window_open = false
+
+//
+// @summary helper to scan a scene for a nearby npc to talk to
+// @param orbital sys backpointer
+// @param xyz location of interest
+//
 
 const _find_nearby_npc = (sys,xyz) => {
 
@@ -51,6 +45,13 @@ const _find_nearby_npc = (sys,xyz) => {
 	return best
 }
 
+//
+// @summary publish a player text conversation to the network
+// @param text to publish
+// @param sys backpointer to orbital sys
+// @note assumes that something with a navigation component is the player
+//
+
 function _publish_chat_to_network(text,sys) {
 
 	// find the 'self' player if any or give up
@@ -78,11 +79,23 @@ function _publish_chat_to_network(text,sys) {
 	})
 }
 
+///
+/// @summary an orbital observer that injects a html layout and will also publish user text activity
+///
+/// ux support for text chat box with a bit of history
+///
+///		+ helps with text chat between players and players and between players and npcs
+///		+ integrates with paper and paints a text input dialog
+///		+ integrates lightly with volume for distance detection (useful for npcs)
+///		+ will detect nearest npcs - reducing some of the burden on npcs to figure this out
+///		+ speech to text is enabled or disabled based on if this is open or closed
+///
+
 export const puppet_text_chat_ux = {
 
 	uuid: 'orbital/puppet/observer-text-chat',
 
-	// paper component will intercept this and paint to the display
+	// this is an actual paper component - it wwill intercept this and paint to the display
 	// the dom element is injected into the paper node so the text_chat_uuid idea is not needed @todo use
 
 	paper: {
@@ -116,7 +129,11 @@ export const puppet_text_chat_ux = {
 		]
 	},
 
+	//
 	// update the displayed ux with text chatter from anywhere including both locally and network
+	//
+	// @summary this is an actual message observer conponent - on the main orbital bus - watching for text conversations
+	//
 
 	resolve: function (blob) {
 
@@ -147,38 +164,6 @@ export const puppet_text_chat_ux = {
 }
 
 ///////////////////////////////////////////////////////////////////////////
-
-///
-/// @todo perhaps puppets can publish a 'disallow voice until' based on active utterances
-/// or they can publish if they are busy
-/// we really shouldn't peek into the internals of other things
-///
-/// for now busy poll to see if puppets are speaking and if so make sure voice is disabled
-/// also for now only allow voice if text window is open also
-/// may need some kind of squelch or push to talk - especially in multiplayer - this all needs thought @todo
-///
-
-let voice_state = false
-let voice_allowed = false
-
-export const voice_recognizer_observer = {
-	resolve: (blob,sys) => {
-		if(isServer) return
-		if(!blob.tick) return
-		const entities = sys.query({puppet:true})
-		voice_allowed = true
-		entities.forEach( (entity) => {
-			if(entity.puppet && entity.puppet.busy) {
-				voice_allowed = false
-			}
-		})
-		const state = voice_allowed && text_chat_window_open
-		if(state != voice_state) {
-			voice_state = state
-			voice_recognizer_set(sys,state)
-		}
-	}
-}
 
 let recognition = null
 let enabled = false
@@ -211,7 +196,7 @@ function voice_recognizer_set(sys,allow = true ) {
 				}
 			},300)
 		} else {
-			console.log("observer text voice: abort")
+			console.log("observer text voice: paused!!")
 			recognition.abort()
 			enabled = false
 		}
@@ -220,6 +205,39 @@ function voice_recognizer_set(sys,allow = true ) {
 	}
 }
 
+let voice_state = false
+let voice_allowed = false
+
+///
+/// @summary orbital observer - a voice recognizer system that busy polls for listening on or off
+///
+/// @todo perhaps puppets can publish a 'disallow voice until' based on active utterances
+/// or they can publish if they are busy
+/// we really shouldn't peek into the internals of other things
+///
+/// for now busy poll to see if puppets are speaking and if so make sure voice is disabled
+/// also for now only allow voice if text window is open also
+/// may need some kind of squelch or push to talk - especially in multiplayer - this all needs thought @todo
+///
+
+export const voice_recognizer_observer = {
+	resolve: (blob,sys) => {
+		if(isServer) return
+		if(!blob.tick) return
+		const entities = sys.query({puppet:true})
+		voice_allowed = true
+		entities.forEach( (entity) => {
+			if(entity.puppet && entity.puppet.busy) {
+				voice_allowed = false
+			}
+		})
+		const state = voice_allowed && text_chat_window_open
+		if(state != voice_state) {
+			voice_state = state
+			voice_recognizer_set(sys,state)
+		}
+	}
+}
 
 
 /*

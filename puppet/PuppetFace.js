@@ -8,6 +8,8 @@ const clamp = (num, a, b) => Math.max(Math.min(num, Math.max(a, b)), Math.min(a,
 
 import { PuppetBody } from './PuppetBody.js'
 
+import { RPMFace2Reallusion } from './RPMFace2Reallusion.js'
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // puppet face focused rigging support
@@ -28,18 +30,28 @@ export class PuppetFace extends PuppetBody {
 	// mark if targets are 'dirty' or not and need updating; to reduce pressure on the engine
 	dirty = {}
 
+	// vrm hint
+	// see blender-puppet-rpm-to-vrm.py which injects rpm target names into vrm rigs
+	vrm = null
+
 	// the current animation sequence that is being played; consists of a series of internal time slice effects
 	sequence = []
 
 	// an idea (being explored) of overall relaxation so that when sequences are done the entire puppet face can be gently brought to rest
 	relaxation = 0
 
-	// reallusion rig?
-	reallusion = false
+	//
+	// @summary stop the current effect
+	//
 
-	// vrm hint
-	// see blender-puppet-rpm-to-vrm.py which injects rpm target names into vrm rigs
-	vrm = null
+	stop() {
+		console.warn('puppet face stopping')
+		super.stop()
+		this.relaxation = 0
+		this.sequence = []
+		this._emote('neutral')
+		// @todo now is a good time to look at player
+	}
 
 	async load(config) {
 
@@ -121,6 +133,7 @@ export class PuppetFace extends PuppetBody {
 		this._blink(time,delta)
 
 		// gaze during the default context - @todo later improve context to be more general
+// @todo renable
 //		if(!this.gazeanim || this.gazeanim === animation) {
 			this._gaze(time,delta)
 //		}
@@ -436,7 +449,7 @@ export class PuppetFace extends PuppetBody {
 		// we support a concept of a single morph target such as cheekPuff mapping to cheek Puff Left and cheek Puff Right
 
 		if(this.reallusion) {
-			Object.entries(RetargetOculusARKitToReallusion).forEach( ([k,v]) => {
+			Object.entries(RPMFace2Reallusion).forEach( ([k,v]) => {
 				if(!Array.isArray(v)) {
 					const t = dictionary[v]
 					if(t) {

@@ -209,4 +209,9 @@ export class PuppetAnimation {
 		if(!this.mixer || !this.clumps) return
 		this.mixer.update(delta/1000)
 	}
+
+	stop() {
+		this.animationStart('default')
+	}
+
 }

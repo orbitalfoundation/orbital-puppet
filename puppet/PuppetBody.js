@@ -232,6 +232,9 @@ export class PuppetBody extends PuppetAnimation {
 		this.animationStart('default')
 	}
 
+	stop() {
+		super.stop()
+	}
 }
 
 

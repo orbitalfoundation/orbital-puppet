@@ -11,30 +11,65 @@ export class PuppetQueue extends PuppetFace {
 	_performances = []
 	audio = null
 	recent = null
-	received = null
 	busy = false
+	conversation = -1
+	segment = 0
 
 	update(time,delta) {
 		super.update(time,delta)
 		this.face_update(null,time,delta)
 	}
 
+	stop() {
+
+		// throw away anything in current conversation
+		this.conversation++
+		this.segment = 0
+
+		// throw away all existing performances
+		this._performances = []
+
+		// stop other systems
+		super.stop()
+
+		// stop audio
+		if(this.audio) this.audio.stop()
+
+		// not busy
+		this.busy = false
+	}
+
+
 	async perform(performance=null) {
+
+		if(!performance) {
+			//console.warn('puppet queue flushing')
+		}
 
 		// @todo if a future conversation arrives then flush all and jump to it
 
-		// throw away old conversations that arrived late
-		if(performance && this.received) {
-			if(performance.conversation < this.received.conversation) {
-				console.error('puppet performance old conversation?',performance,this.received)
-				return				
+		if(performance) {
+
+			// skip to current conversation - stop old if any
+			if(performance.conversation > this.conversation) {
+				if(this.conversation >= 0) this.stop()
 			}
-			if(performance.conversation == this.recent.conversation && performance.segment < this.received.segment) {
-				console.error('puppet performance old segment?',performance,this.received)
+
+			// throw away old conversations that arrived late
+			else if(performance.conversation < this.conversation) {
+				console.error('puppet queue old conversation?',performance,this.conversation)
 				return
 			}
+
+			else if(performance.segment < this.segment) {
+				console.error('puppet queue old segment?',performance,this.conversation,this.segment)
+				//return
+			}
+
+			// set ratchet
+			this.conversation = performance.conversation
+			this.segment = performance.segment
 		}
-		this.received = { ...performance }
 
 		// buffer performance
 		if(performance) {
@@ -48,7 +83,6 @@ export class PuppetQueue extends PuppetFace {
 
 		// truly done?
 		if(!this._performances.length) {
-			console.log("************ totally done")
 			this.busy = false
 			return
 		}
@@ -68,6 +102,11 @@ export class PuppetQueue extends PuppetFace {
 				this.perform()
 			}, performance.break || BREAK_DURATION)
 			return
+		}
+
+		// call callback if any
+		if(performance.callback) {
+			performance.callback()
 		}
 
 		// perform body
