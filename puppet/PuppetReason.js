@@ -43,10 +43,8 @@ export async function puppetReason(scope,prompt,callback) {
 		scope.conversationCounter = 10000
 	}
 
-	// remember prompt for good luck
+	// track a few facts
 	scope.prompt = prompt
-
-	// next conversation please
 	scope.conversationCounter++
 	scope.segmentCounter = 0
 	
@@ -61,17 +59,17 @@ export async function puppetReason(scope,prompt,callback) {
 		if(!scope._socket) {
 			scope._socket = new PuppetSocket()
 		}
-		scope.socket.prompt = prompt
 		scope.socket.callback = async (text) => {
-			console.log('puppet reason socket got',text)
 			await puppetFragment(scope,text,callback)
 		}
+		scope.socket.prompt = prompt
 		scope._socket.send(scope.socket)
 	}
 
 	// reason via rest
 	else if(scope.reason) {
-		await puppetFragment(scope,prompt,callback)
+		const text = await puppet_reason_llm(scope.reason,prompt)
+		await puppetFragment(scope,text,callback)
 	}
 
 	else {
