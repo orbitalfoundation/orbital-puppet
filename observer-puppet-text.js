@@ -52,31 +52,40 @@ const _find_nearby_npc = (sys,xyz) => {
 // @note assumes that something with a navigation component is the player
 //
 
-function _publish_chat_to_network(text,sys) {
+function _publish_chat_to_network(sys,text) {
 
-	// find the 'self' player if any or give up
+	if(!text || !text.length) return
+
+	// multicast text to network - not associated with a given uuid since these are throwaway @todo may want a db durable flag instead
+	const packet = {
+		network: {},
+		conversation:{
+			text,
+		}
+	}
+
+	// find the 'self' player if any
 	const speakers = sys.query({navigation:true})
 	if(!speakers || !speakers.length || !speakers[0].volume || !speakers[0].volume.transform || !speakers[0].volume.transform.xyz) {
 		console.error("text chat: bad speaker?",speakers)
-		return
-	}
-	const xyz = speakers[0].volume.transform.xyz
+	} else {
+		packet.conversation.sponsoruuid = speakers[0].uuid
+		packet.conversation.sponsorname = speakers[0].name
+		const xyz = packet.conversation.xyz = speakers[0].volume.transform.xyz
 
-	// also find a nearby npc as well - helps reduce burden on npcs to look for nearest player and reduces traffic
-	const npc = _find_nearby_npc(sys,xyz)
-
-	// send to everybody including network
-	// no uuid - for now these are thrown away; not accumulated under some uuid or as a sequence of like conversation/123 uuids
-	sys.resolve({
-		network: {},
-		conversation:{
-			sponsoruuid: speakers[0].uuid,
-			sponsorname: speakers[0].name,
-			npcuuid: npc ? npc.uuid : 0,
-			text,
-			xyz,
+		// send to nearby npc if any as well
+		const npc = _find_nearby_npc(sys,xyz)
+		if(npc) {
+			packet.reason = {
+				npcuuid: npc.uuid,
+				prompt: text
+			}
 		}
-	})
+
+	}
+
+	sys.resolve(packet)
+
 }
 
 ///
@@ -111,7 +120,7 @@ export const puppet_text_chat_ux = {
 				kind:'input',
 				onchange: (event,parent,sys) => {
 					if(!event || !event.target || !event.target.value.length) return
-					_publish_chat_to_network(event.target.value,sys)
+					_publish_chat_to_network(sys,event.target.value)
 					event.target.value = ''
 				}
 			},
@@ -179,7 +188,7 @@ function voice_recognizer_set(sys,allow = true ) {
 					const text = event.results[i][0].transcript
 					if (event.results[i].isFinal && text && text.length) {
 						console.log("voice_recognizer final",text)
-						_publish_chat_to_network(text,sys)
+						_publish_chat_to_network(sys,text)
 					} else {
 						//console.log('chat widget: speech to text interim: ' + transcript);
 					}

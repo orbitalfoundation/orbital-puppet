@@ -63,10 +63,11 @@ function detect_abort(sys) {
 	detect_abort_latched = true
 	document.addEventListener("keyup", async (e) => {
 		if(e.key !== "Escape") return
-		console.log("abort!")
+		console.log("observer puppet performance abort!")
 		const entities = sys.query({puppet:true,volume:true})
 		for(const entity of entities) {
 			sys.resolve({
+				reason:{stop:performance.now()},
 				performance:{targetuuid:entity.uuid,stop:performance.now()},
 				network:{}
 			})

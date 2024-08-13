@@ -42,10 +42,6 @@ export class PuppetQueue extends PuppetFace {
 
 	async perform(performance=null) {
 
-if(performance) {
-console.log(performance.text,performance.conversation,performance.segment)
-}
-
 		if(!performance) {
 			//console.warn('puppet queue flushing')
 		}

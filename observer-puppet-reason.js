@@ -10,19 +10,15 @@ import { puppetReason } from './puppet/PuppetReason.js'
 
 const resolve = async function (blob,sys) {
 
-	// is there a message directed at a puppet?
+	// is there a reason message directed at a puppet?
 	if(blob.tick) return
-	if(!blob.conversation || !blob.conversation.npcuuid) return
-	const uuid = blob.conversation.npcuuid
-	const text = blob.conversation.text
+	if(!blob.reason || !blob.reason.npcuuid) return
+	if(!blob.reason.prompt || !blob.reason.prompt.length) return
 
-	// any text?
-	if(!text || !text.length) {
-		console.error('puppet reason observer - nothing to reason about')
-		return
-	}
+	const uuid = blob.reason.npcuuid
+	const prompt = blob.reason.prompt
 
-	// does the puppet exist?
+	// does a target exist?
 	const entities = sys.query({uuid})
 	if(!entities.length || !entities[0].puppet) {
 		console.warn("puppet reason observer - target not found",uuid)
@@ -30,13 +26,20 @@ const resolve = async function (blob,sys) {
 	}
 	const entity = entities[0]
 
-	// puppet chews on an prompt and spits out a bunch of performances
-	puppetReason(entity.puppet,text,(performance)=>{
+	// callback invoked on completed performances - which may then be broadcast to network or locally
+	const callback = (performance)=>{
+		// don't set uuid on the blob since this is heavy transient state not intended for db storage; instead stuff target into performance itself
+		// @todo maybe it might make sense to explicitly mark blobs as durable or not?
 		performance.targetuuid = uuid
 		const blob = { performance }
-		if(sys.isServer) blob.network = {} // @todo examine later concepts around local authority - for now only have servers multicast npcs
+		// @todo for now only have server broadcast - later example ideas around locally authoritative publishing
+		if(sys.isServer) blob.network = {}
+		// publish to all listeners - which may be local only if this reasoning engine is running locally - for now
 		sys.resolve(blob)
-	})
+	}
+
+	// send prompts to puppet and get back performances
+	puppetReason(entity.puppet,callback,prompt)
 }
 
 export const observer_converse = {

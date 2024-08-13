@@ -1,0 +1,14 @@
+{
+  "name": "orbital-puppet",
+  "version": "1.0.0",
+  "description": "Real time web based conversational interfaces using 3d embodied puppets driven by llms with voice, facial and body performances leveraging open source third party components.",
+  "main": "observer-puppet-perform.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@diffusionstudio/vits-web": "^1.0.2"
+  }
+}

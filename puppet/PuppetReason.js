@@ -5,6 +5,16 @@ import { lipsyncQueue, lipsyncGetProcessor } from '../talkinghead/modules/lipsyn
 
 import { PuppetSocket } from './PuppetSocket.js'
 
+// debugging sanity check
+let globalsegment = 0
+
+// local llm worker
+const worker_llm = new Worker((new URL('./worker-llm.js', import.meta.url)).href, { type: 'module' })
+worker_llm.postMessage({load:true})
+
+// local tts worker
+const worker_tts = new Worker((new URL('./worker-tts.js', import.meta.url)).href, { type: 'module' })
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
 /// @summary Perform reasoning and speech to text and generate word timings and passes many 'performances' back in a callback
@@ -27,60 +37,103 @@ import { PuppetSocket } from './PuppetSocket.js'
 ///
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-let globalsegment = 0
+export async function puppetReason(scope,callback,prompt=null) {
 
-export async function puppetReason(scope,prompt,callback) {
+	// sanity check
+	if(!scope || !callback) return
 
-	if(!prompt || !prompt.length) {
-		console.error('puppet reason - nothing to reason about')
+	// buffer prompts to prevent overloading
+	if(!scope._prompt_queue) {
+		scope._prompt_queue = []
+	}
+
+	// add to queue
+	if(prompt && prompt.length) {
+		scope._prompt_queue.push(prompt)
+	}
+
+	// nothing to do?
+	if(!scope._prompt_queue.length) {
+		//console.log("puppet reason queue exhausted")
 		return
 	}
-	console.log("puppet reason - got prompt",prompt)
 
-	// increment a conversation counter which is important for throwing away old conversations per puppet
-	if(!scope.conversationCounter) {
-		//console.warn("puppet - restarting conversation counter",scope)
-		scope.conversationCounter = 10000
-	}
+	// throw away most of the queue and work on the last item only
+	prompt = scope._prompt_queue.at(-1)
+	scope._prompt_queue = [prompt]
 
 	// track a few facts
-	scope.prompt = prompt
-	scope.conversationCounter++
+	scope._prompt = prompt
+	scope.conversationCounter = scope.conversationCounter ? scope.conversationCounter+1 : 1
 	scope.segmentCounter = 0
-	
+
 	// say something specific - (test code for developer support)
 	if(prompt.startsWith('/say')) {
 		const text = prompt.slice(4).trim()
 		await puppetFragment(scope,text,callback)
+		scope._prompt_queue.shift()
+		await puppetReason(scope,callback,null)
+		return
 	}
 
-	// reason based on a socket?
-	else if(scope.socket) {
-		if(!scope._socket) {
-			scope._socket = new PuppetSocket()
-		}
+	// reasoning - via socket - does not need history
+	if(scope.socket) {
+		scope.socket.prompt = prompt
 		scope.socket.callback = async (text) => {
 			await puppetFragment(scope,text,callback)
+			scope._prompt_queue.shift()
+			await puppetReason(scope,callback,null)
+			return
 		}
-		scope.socket.prompt = prompt
+		if(!scope._socket) scope._socket = new PuppetSocket()
 		scope._socket.send(scope.socket)
+		return
 	}
 
-	// reason via rest
-	else if(scope.reason) {
-		const text = await puppet_reason_llm(scope.reason,prompt)
-		await puppetFragment(scope,text,callback)
-	}
-
-	else {
+	// reasoning is absent
+	if(!scope.reason) {
 		const text = "This npc has no reasoning ability"
 		await puppetFragment(scope,text,callback)
+		scope._prompt_queue.shift()
+		await puppetReason(scope,callback,null)
+		return
 	}
 
+	// update reasoning history
+	if(!scope.reason._messages) {
+		scope.reason._messages = [
+			{ role: "system", content: scope.reason.backstory },
+		]
+	}
+	scope.reason._messages.push({ role: "user", content: prompt })
+
+	// reason via client side llm
+	if(true && worker_llm) { // || reason.bearer == 'mlc-ai') {
+		const messages = scope.reason._messages
+		worker_llm.postMessage({messages})
+		worker_llm.onmessage = async (event) => {
+			console.log('got message',event)
+			const text = event.data.reply
+			await puppetFragment(scope,text,callback)
+			scope._prompt_queue.shift()
+			await puppetReason(scope,callback,null)
+		}
+		return
+	}
+
+	// reasoning - via rest
+	const text = await puppet_reason_llm(scope.reason,prompt)
+	await puppetFragment(scope,text,callback)
+	scope._prompt_queue.shift()
+	await puppetReason(scope,callback,null)
 }
 
+// @todo remove this
 lipsyncGetProcessor("en")
-let busy = 0
+
+///
+/// a single prompt can return many text fragments - digest now
+///
 
 async function puppetFragment(scope,text,callback) {
 
@@ -90,7 +143,7 @@ async function puppetFragment(scope,text,callback) {
 	}
 
 	//
-	// for now patch up utterances around dollars such as $9.99
+	// hack: for now patch up utterances around dollars such as $9.99 prior to lipsync
 	//
 
 	text = fix_dollars(text)
@@ -106,32 +159,26 @@ async function puppetFragment(scope,text,callback) {
 
 	let queue = lipsyncQueue(text)
 
-	console.log("puppet reason - fragment queue is", queue,busy)
-
-	if(busy) {
-		console.error('puppet reason - fragment queue overloaded',busy)
-	}
-
-	busy++
-
 	for(const blob of queue) {
 
 		// store a few facts about which performance this is - useful for aborting conversations
-		blob.prompt = scope.prompt
+		blob.prompt = scope._prompt
 		blob.conversation = scope.conversationCounter
 		blob.segment = scope.segmentCounter++
 		blob.global = globalsegment++
+
 		console.log('puppet reason - sending blob',blob.text,blob.conversation,blob.segment,blob.global,queue.length)
 
-		// the lipsync queue returns an array of text objects or nothing
+		// not an utterance?
 		if(!blob.text || !blob.text.length) {
 			delete blob.text
 			delete blob.actions
 		}
 
+		// turn back into string
 		else {
 
-			// turn into a string from a hash
+			// turn tokens into a string from a hash
 			let text = blob.text.map( term => { return term.word }).join(' ')
 
 			// at least rewrite as string
@@ -143,9 +190,25 @@ async function puppetFragment(scope,text,callback) {
 				blob.text = results
 				blob.actions = actions
 			}
-
 		}
 	
+
+		// helper
+		const buffer_to_bytes = (buffer) => {
+			if(isServer) {
+				const binary = Buffer.from(buffer).toString('binary');
+				return Buffer.from(binary, 'binary').toString('base64');
+			} else {
+				const uint8buf = new Uint8Array(buffer)
+				const arrayu8 = Array.from(uint8buf)
+				let binaryu8 = ''; arrayu8.forEach(elem => { binaryu8+= String.fromCharCode(elem) })
+				//const binaryu8 = String.fromCharCode.apply(null,arrayu8) // this is blowing the stack
+				// don't bother packaging this up as a playable file but rather let the client do that if desired
+				// blob.audio = "data:audio/mp3;base64," + window.btoa( binary )
+				return window.btoa(binaryu8)
+			}
+		}
+
 
 		//
 		// TTS and STT using coqui
@@ -160,48 +223,56 @@ async function puppetFragment(scope,text,callback) {
 		//
 
 		//
+		// tts using a built in model
+		// sadly this does not yield word timings - although they may improve in the future? check for updates @todo
+		//
+
+		if(typeof worker_tts !== 'undefined' && blob.text && blob.text.length) {
+			console.log("tts")
+			worker_tts.postMessage({text:blob.text})
+			console.log("tts2")
+			worker_tts.onmessage = async (event) => {
+			console.log("tts3")
+				const buffer = event && event.data ? event.data.buffer : null
+				if(!buffer) return
+				blob.audio = buffer_to_bytes(buffer)
+				if(true) {
+					blob.whisper = await puppet_reason_stt_local(null,buffer)
+				} else if(scope.whisper) {
+					blob.whisper = await puppet_reason_stt(scope.whisper,buffer)
+				}
+				callback(blob)
+			}
+			return
+		}
+
+		//
 		// tts and stt using openai
 		//
 
-		if(blob.text && blob.text.length && scope.tts && scope.tts.bearer === "openai") {
+		else if(blob.text && blob.text.length && scope.tts && scope.tts.bearer === "openai") {
 
 			const buffer = await puppet_reason_tts(scope.tts,blob.text)
+
+			// @todo - unsure why this isn't needed - the above was supposed to be an mp3 but it appears to be raw? or do other tools handle mp3 also?
+			// @todo - could try run it through local mp3 mp3-estimate-duration.js logic?
+			// audioContext.decodeAudioData(buffer)
 
 			if(!buffer) {
 				console.error("puppet reason - failed to talk to tts",blob)
 				return
 			}
 
-			if(isServer) {
-				const binary = Buffer.from(buffer).toString('binary');
-				blob.audio = Buffer.from(binary, 'binary').toString('base64');
-			} else {
-				const uint8buf = new Uint8Array(buffer)
-				const arrayu8 = Array.from(uint8buf)
-				let binaryu8 = ''; arrayu8.forEach(elem => { binaryu8+= String.fromCharCode(elem) })
-				//const binaryu8 = String.fromCharCode.apply(null,arrayu8) // this is blowing the stack
-				// don't bother packaging this up as a playable file but rather let the client do that if desired
-				// blob.audio = "data:audio/mp3;base64," + window.btoa( binary )
-				blob.audio = window.btoa(binaryu8)
-			}
-
-			//
-			// stt
-			//
-
-			if(scope.whisper && buffer) {
+			blob.audio = buffer_to_bytes(buffer)
+			if(true) {
+				blob.whisper = await puppet_reson_stt_local(null,buffer)
+			} else if(scope.whisper) {
 				blob.whisper = await puppet_reason_stt(scope.whisper,buffer)
-				if(!blob.whisper) {
-					console.error('puppet reason - failed to get whisper timings')
-				}
 			}
 		}
 
-
 		callback(blob)
 	}
-
-	busy--
 
 }
 
@@ -217,6 +288,22 @@ function extract_tokens(str="") {
 	return { results, actions }
 }
 
+
+// test gemini on google canary - did not work
+/*
+import { pipeline } from './libs/transformers.min.js'
+async function test() {
+	const generator = await pipeline('text-generation', 'Xenova/gemini-nano')
+	const messages = [
+	  { role: 'system', content: 'You are a helpful assistant.' },
+	  { role: 'user', content: 'Write me a poem.' },
+	];
+	const output = await generator(messages, { temperature: 0.6, top_k: 5 });
+	console.log(output)
+	alert(output)
+}
+*/
+
 //
 // @summary utility to call openai for reasoning
 // @param reason - bucket of json with properties for calling remote llm
@@ -225,7 +312,7 @@ function extract_tokens(str="") {
 // @todo may want to return an error message on failure
 //
 
-async function puppet_reason_llm(reason,prompt) {
+async function puppet_reason_llm(reason,messages) {
 
 	// configure for various targets
 	if(reason.bearer !== 'openai') {
@@ -249,10 +336,7 @@ async function puppet_reason_llm(reason,prompt) {
 	// encode blob for openai
 	props.body = JSON.stringify({
 		model: reason.model || 'gpt-3.5-turbo',
-		messages: [
-			{ role: "system", content: reason.backstory },
-			{ role: "user", content: prompt }
-		]
+		messages
 	})
 
 	// url
@@ -318,10 +402,98 @@ export async function puppet_reason_tts(tts,text) {
 }
 
 //
-// utility to call openai for whisper timing segmentation 
+// utility to call whisper for timing
 //
 
+
+const url = new URL('../whisper/whisper-diarization-worker.js', import.meta.url)
+const worker = new Worker(url.href, { type: 'module' })
+worker.postMessage({ type: 'load', data: { device:'webgpu' } })
+
+function transcribe(audio) {
+	return new Promise((resolve, reject) => {
+		worker.postMessage({ type: 'run', data: { audio, language:'english' } })
+		worker.onmessage = (event) => {
+			switch(event.data.status) {
+			default: break
+			case 'error':
+			case 'complete': {
+				if(event.data.result && event.data.result.transcript && event.data.result.transcript.chunks)
+				if(event.data.result.segments && event.data.result.segments.length)
+				{
+					console.log("done")
+					const chunks = event.data.result.transcript.chunks
+					const speaker = event.data.result.segments[0].label
+					resolve({chunks,speaker})
+				} else {
+					resolve({})
+				}
+			}
+		}}
+	})
+}
+
+async function puppet_reason_stt_local(whisper_args,bufferArray) {
+
+	try {
+
+		const audioContext = new window.AudioContext({sampleRate: 16000 })
+		let audioData = await audioContext.decodeAudioData(bufferArray)
+		let audio
+		if (audioData.numberOfChannels === 2) {
+			const SCALING_FACTOR = Math.sqrt(2)
+			let left = audioData.getChannelData(0)
+			let right = audioData.getChannelData(1)
+			audio = new Float32Array(left.length)
+			for (let i = 0; i < audioData.length; ++i) {
+				audio[i] = SCALING_FACTOR * (left[i] + right[i]) / 2
+			}
+		} else {
+			audio = audioData.getChannelData(0)
+		}
+
+		// @todo awaiting is not good
+		console.log("puppet reason local await to transcribe start",performance.now())
+		let words = await transcribe(audio)
+		console.log("puppet reason local await to transcribe done",performance.now())
+		console.log(words)
+
+		const whisperAudio = {
+			words: [],
+			wtimes: [],
+			wdurations: [],
+			markers: [],
+			mtimes: []
+		}
+
+		// @todo i think i should just ship the word timings to the client and call it a day
+
+		// Add words to the whisperAudio object
+		// @todo the -150 is a hack... it's setting timing for later in pipeline and probably should not be set here
+
+		words.chunks.forEach( x => {
+			// @ts-ignore
+			whisperAudio.words.push( x.text );
+			// @ts-ignore
+			whisperAudio.wtimes.push( 1000 * x.timestamp[0] - 150 );
+			// @ts-ignore
+			whisperAudio.wdurations.push( 1000 * (x.timestamp[1] - x.timestamp[0]) );
+		})
+
+		return whisperAudio
+
+	} catch(err) {
+		console.error("puppet stt - whisper error",err)
+	}
+
+	return null
+}
+
 async function puppet_reason_stt(whisper_args,bufferArray) {
+
+	//////////////////////////////////////////////////////////////////////////////////////////////
+	// tediously encode a form in a way that it will be digested by a server
+	//////////////////////////////////////////////////////////////////////////////////////////////
 
 	try {
 
@@ -410,12 +582,20 @@ async function puppet_reason_stt(whisper_args,bufferArray) {
 			props.headers.Authorization = `Bearer ${globalThis.secrets.openai}`
 		}
 
+		///////////////////////////////////////////////////////////////////////////////////////////////////////
+		// call the server
+		///////////////////////////////////////////////////////////////////////////////////////////////////////
+
 		const response = await fetch(url, props )
 
 		if(!response.ok) {
 			console.error("puppet stt - whisper bad response",response)
 			return null
 		}
+
+		//////////////////////////////////////////////////////////////////////////////////////////////////////
+		// pull out the word timings
+		////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		const json = await response.json()
 
