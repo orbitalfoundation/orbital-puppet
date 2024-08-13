@@ -12,7 +12,7 @@ self.addEventListener('message', async (e) => {
 				initProgressCallback: (status)=>{
 					ready = status.progress == 1
 					if(ready) {
-						console.log('loading',status)
+						console.log('puppet worker llm - loaded llm')
 						resolve()
 					}
 				}
@@ -20,9 +20,11 @@ self.addEventListener('message', async (e) => {
 			engine.reload(selectedModel)
 		})
 	}
-	if(e.data.messages) {
+	if(e.data.messages && ready) {
 		const messages = e.data.messages
 		const reply = await engine.chat.completions.create({messages})
         self.postMessage({reply:reply.choices[0].message.content})
+	} else {
+		console.warn('puppet worker llm - loading')
 	}
 })

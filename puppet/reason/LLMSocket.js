@@ -1,7 +1,7 @@
 
-// @todo this should run in nodejs also
+const isServer = typeof window === 'undefined'
 
-export class PuppetSocket {
+export class LLMSocket {
 
 	socket = null
 	isOpen = false
@@ -10,12 +10,18 @@ export class PuppetSocket {
 	url = null
 	terms = []
 
-	open(url) {
+	async open(url) {
+
+		if(isServer || typeof WebSocket === 'undefined') {
+			this.WebSocket = import('ws')
+		} else {
+			this.WebSocket = WebSocket
+		}
 
 		if(this.socket) return
 
 		try {
-			this.socket = new WebSocket(url)
+			this.socket = new this.WebSocket(url)
 		} catch(err) {
 			this.error(error)
 			return

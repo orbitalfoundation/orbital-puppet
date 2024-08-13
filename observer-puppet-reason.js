@@ -1,5 +1,5 @@
 
-import { puppetReason } from './puppet/PuppetReason.js'
+import { puppet_reason } from './puppet/reason/puppet-reason.js'
 
 ///
 /// @summary An orbital observer - watches for puppet conversations and generates llm driven tts responses - runs on client or server
@@ -39,7 +39,7 @@ const resolve = async function (blob,sys) {
 	}
 
 	// send prompts to puppet and get back performances
-	puppetReason(entity.puppet,callback,prompt)
+	puppet_reason(entity.puppet,callback,prompt)
 }
 
 export const observer_converse = {

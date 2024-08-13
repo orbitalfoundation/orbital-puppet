@@ -1,5 +1,5 @@
 
-import { PuppetQueue as Puppet } from './puppet/PuppetQueue.js'
+import { PuppetQueue as Puppet } from './puppet/perform/PuppetQueue.js'
 
 ///
 /// @summary orbital observer - watches for new performances and plays them on a 3d puppet in the scene

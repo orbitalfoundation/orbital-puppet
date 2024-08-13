@@ -4,10 +4,13 @@
 ///
 /// https://talkrapp.com/speechSynthesis.html <- lots of good tips here
 ///
-/// There are several design defects in this api:
+/// There are several design defects in the built in tts api:
 ///     - only one voice at a time - which is really a problem for multi-agent environments
 ///     - a library of avaliable voices has to be fetched prior to being able to use those voices
-///     - there is no information about the duration of an utterance
+///     - there is low information about the duration of an utterance prior to uttering it
+///		- inconsistent timing
+///		- cannot pipe audio where i want it
+///		- voices themselves are poor
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +142,7 @@ export function synthesize(args={
 		time = e.elapsedTime
 	}
 	utterance.onboundary = (e) => {
-		// this could be used to 'just in time' do visemes? @todo
+		// this could be used to 'just in time' do visemes? 
 		if(previous)_synthesize_estimate_insert(previous,e.elapsedTime,time)
 		previous = text.slice(e.charIndex, e.charIndex + e.charLength)
 		time = e.elapsedTime

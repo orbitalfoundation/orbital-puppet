@@ -7,7 +7,6 @@
 /// Amazon polly may be another option at some point
 /// Note that hugging face tends to export flac, i can peek at the flac to try estimate the duration
 ///
-/// @todo break up all paragraphs into single sentences!!
 ///
 
 import { flac_estimate_duration } from './flac-estimate-duration.js'

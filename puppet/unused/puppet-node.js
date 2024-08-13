@@ -8,7 +8,6 @@
 /// it expects a 3js scene node that is the root of a rigged avatar such as loaded by a gltf
 /// it manages access to low level details such as morph targets
 /// it may perform some blending over time to ease the burden of work for outside callers
-/// @todo maybe this should be a full blown class that wraps 3js nodes?
 ///
 
 https://discourse.threejs.org/t/merging-multiple-morph-targets-in-readyplayerme-avatars/25778
