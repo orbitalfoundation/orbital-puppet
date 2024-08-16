@@ -192,7 +192,7 @@ function animationStart(requested='default') {
 
 export class PuppetAnimation {
 
-	clumps = null
+	clumps = {}
 	mixer = null
 	animationStart = animationStart.bind(this)
 

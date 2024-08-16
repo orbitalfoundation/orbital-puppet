@@ -112,7 +112,6 @@ export async function puppet_fragment(scope,text,callback) {
 			} else if(scope.whisper) {
 				blob.whisper = await puppet_reason_stt(scope.whisper,buffer)
 			}
-			callback(blob)
 		}
 
 		//
@@ -154,6 +153,9 @@ export async function puppet_fragment(scope,text,callback) {
 			// audioContext.decodeAudioData(buffer)
 			await stt_audio_whisper(scope,blob,buffer)
 		}
+
+		// pass back whatever i got
+		callback(blob)
 
 	}
 

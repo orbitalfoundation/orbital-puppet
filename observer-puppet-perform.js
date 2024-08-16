@@ -132,5 +132,8 @@ async function _puppet_bind(entity) {
 
 	puppet._instance = new Puppet()
 	await puppet._instance.load(config)
+
+	puppet._instance.animationStart("default")
+
 	return puppet._instance
 }

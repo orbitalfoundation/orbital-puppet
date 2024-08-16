@@ -51,7 +51,7 @@ export class PuppetQueue extends PuppetFace {
 		if(performance) {
 
 			// skip to current conversation - stop old if any
-			if(performance.conversation > this.conversation) {
+			if(performance.conversation > this.conversation && this.busy) {
 				if(this.conversation >= 0) this.stop()
 			}
 
@@ -61,7 +61,7 @@ export class PuppetQueue extends PuppetFace {
 				return
 			}
 
-			else if(performance.segment < this.segment) {
+			else if(performance.conversation <= this.conversation && performance.segment < this.segment) {
 				console.error('puppet queue old segment?',performance,this.conversation,this.segment)
 				//return
 			}
@@ -112,9 +112,9 @@ export class PuppetQueue extends PuppetFace {
 		// perform body
 		if(performance.actions) {
 			performance.actions.forEach(action => {
-				if(this.clumps[action]) {
+				//if(this.clumps[action]) {
 					this.animationStart(action)
-				}
+				//}
 			})
 		}
 

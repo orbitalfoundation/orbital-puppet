@@ -10,8 +10,8 @@ self.addEventListener('message', async (e) => {
 		await new Promise((resolve,reject) => {
 			engine = new webllm.MLCEngine({
 				initProgressCallback: (status)=>{
-					ready = status.progress == 1
-					if(ready) {
+					if(!ready && status.progress === 1) {
+						ready = true
 						console.log('puppet worker llm - loaded llm')
 						resolve()
 					}
@@ -20,11 +20,13 @@ self.addEventListener('message', async (e) => {
 			engine.reload(selectedModel)
 		})
 	}
-	if(e.data.messages && ready) {
-		const messages = e.data.messages
-		const reply = await engine.chat.completions.create({messages})
-        self.postMessage({reply:reply.choices[0].message.content})
-	} else {
-		console.warn('puppet worker llm - loading')
+	if(!e.data.messages) return
+	if(!ready) {
+		console.warn('puppet worker llm - is not ready',e)
+		return
 	}
+	const messages = e.data.messages
+	console.log("npc worker llm got message to respond to",messages)
+	const reply = await engine.chat.completions.create({messages})
+	self.postMessage({reply:reply.choices[0].message.content})
 })

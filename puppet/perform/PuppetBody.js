@@ -1,8 +1,4 @@
 
-if(!globalThis.THREE) {
-	alert("three is missing")
-}
-
 import { Mixamo2VRM } from './Mixamo2VRM.js'
 
 //
@@ -167,8 +163,7 @@ function _copy_bones(node,vrm) {
 	if(vrm) {
 		bones.armature = vrm.humanoid.normalizedHumanBonesRoot
 		Object.entries(VRM2Mixamo).forEach( ([k,v]) => {
-			bones[k] = v
-			bones[v] = vrm.humanoid.getNormalizedBoneNode(k) || {
+			bones[k] = bones[v] = vrm.humanoid.getNormalizedBoneNode(k) || {
 				position: new THREE.Vector3(),
 				quaternion: new THREE.Quaternion(),
 				scale: new THREE.Vector3(),
@@ -228,8 +223,6 @@ export class PuppetBody extends PuppetAnimation {
 			}
 		})
 
-		// run default animation
-		this.animationStart('default')
 	}
 
 	stop() {

@@ -83,7 +83,7 @@ export async function puppet_reason(scope,callback,prompt=null) {
 	}
 
 	// reasoning is absent
-	if(!scope.reason) {
+	if(!scope.reason || !scope.reason.messages) {
 		const text = "This npc has no reasoning ability"
 		await puppet_fragment(scope,text,callback)
 		scope._prompt_queue.shift()
@@ -92,20 +92,17 @@ export async function puppet_reason(scope,callback,prompt=null) {
 	}
 
 	// reasoning history for local llm and openai
-	if(!scope.reason._messages) {
-		scope.reason._messages = [
-			{ role: "system", content: scope.reason.backstory },
-		]
-	}
-	scope.reason._messages.push({ role: "user", content: prompt })
+	scope.reason.messages.push({ role: "user", content: prompt })
 
 	// reason via client side llm
 	if(typeof worker_llm !== 'undefined' && scope.reason.handler === 'mlc-ai') {
-		const messages = scope.reason._messages
+		const messages = scope.reason.messages
 		worker_llm.postMessage({messages})
 		worker_llm.onmessage = async (event) => {
-			console.log('puppet - local llm reason - got message',event)
+			console.log('puppet - local llm reason - got response',event)
 			const text = event.data.reply
+			if(!text || !text.length) return
+			scope.reason.messages.push({ role:"tool", content: text})
 			await puppet_fragment(scope,text,callback)
 			scope._prompt_queue.shift()
 			await puppet_reason(scope,callback,null)
