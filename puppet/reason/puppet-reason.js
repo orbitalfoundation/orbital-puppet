@@ -111,7 +111,7 @@ export async function puppet_reason(scope,callback,prompt=null) {
 	}
 
 	// reasoning via rest gateway
-	const text = await puppet_reason_llm(scope.reason,prompt)
+	const text = await puppet_reason_llm(scope.reason)
 	await puppet_fragment(scope,text,callback)
 	scope._prompt_queue.shift()
 	await puppet_reason(scope,callback,null)

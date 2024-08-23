@@ -1,22 +1,17 @@
 
-const isServer = typeof window === 'undefined'
-
 import { puppet_reason_tts } from './puppet-tts.js'
 import { puppet_reason_stt, puppet_reason_stt_local } from './puppet-stt.js'
+import { lipsyncQueue } from '../shared/lipsync-queue.mjs'
+import { fix_dollars } from './fix_dollars.js'
+
+// buffer handling differs on server
+const isServer = typeof window === 'undefined'
 
 // a local tts worker
 const worker_tts = new Worker((new URL('./worker-tts.js', import.meta.url)).href, { type: 'module' })
 
-import { lipsyncQueue, lipsyncGetProcessor } from '../talkinghead/modules/lipsync-queue.mjs'
-import { LLMSocket } from './LLMSocket.js'
-
-import { fix_dollars } from './fix_dollars.js'
-
 // debugging sanity check
 let globalsegment = 0
-
-// @todo prefer to not load in this way - look at other approaches
-lipsyncGetProcessor("en")
 
 ///
 /// a single prompt can return many text fragments - digest now
@@ -48,8 +43,6 @@ export async function puppet_fragment(scope,text,callback) {
 		blob.conversation = scope.conversationCounter
 		blob.segment = scope.segmentCounter++
 		blob.global = globalsegment++
-
-		console.log('puppet reason - sending blob',blob.text,blob.conversation,blob.segment,blob.global,queue.length)
 
 		// not an utterance?
 		if(!blob.text || !blob.text.length) {
@@ -83,7 +76,6 @@ export async function puppet_fragment(scope,text,callback) {
 			}
 		}
 	
-
 		// helper
 		const buffer_to_bytes = (buffer) => {
 			if(isServer) {

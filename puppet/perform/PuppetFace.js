@@ -1,14 +1,12 @@
 
-const BREAK_DURATION = 100
-
-import { animMoods } from '../talkinghead/modules/anim-moods.mjs'
-import { lipsyncConvert } from '../talkinghead/modules/lipsync-queue.mjs'
+import { PuppetBody } from './PuppetBody.js'
+import { RPMFace2Reallusion } from './RPMFace2Reallusion.js'
+import { animMoods } from '../shared/anim-moods.mjs'
+import { lipsyncConvert } from '../shared/lipsync-queue.mjs'
 
 const clamp = (num, a, b) => Math.max(Math.min(num, Math.max(a, b)), Math.min(a, b));
 
-import { PuppetBody } from './PuppetBody.js'
-
-import { RPMFace2Reallusion } from './RPMFace2Reallusion.js'
+const BREAK_DURATION = 100
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //

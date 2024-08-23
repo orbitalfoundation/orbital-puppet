@@ -1,8 +1,9 @@
+const isServer = typeof window === 'undefined'
 
 // a local stt worker
 const url = new URL('./whisper/whisper-diarization-worker.js', import.meta.url)
 const worker_stt = new Worker(url.href, { type: 'module' })
-worker_stt.postMessage({ type: 'load', data: { device:'webgpu' } })
+worker_stt.postMessage({ type: 'load', data: { device:'wasm' } }) // webgpu
 
 //
 // utility to call whisper for timing

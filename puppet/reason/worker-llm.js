@@ -1,7 +1,7 @@
 
 
 const selectedModel = "Llama-3.1-8B-Instruct-q4f32_1-MLC"
-import * as webllm from "https://esm.run/@mlc-ai/web-llm"
+import * as webllm from "./web-llm.js" //https://esm.run/@mlc-ai/web-llm"
 let engine = null
 let ready = false
 

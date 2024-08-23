@@ -13,7 +13,7 @@ export class LLMSocket {
 	async open(url) {
 
 		if(isServer || typeof WebSocket === 'undefined') {
-			this.WebSocket = import('ws')
+			this.WebSocket = await import('ws')
 		} else {
 			this.WebSocket = WebSocket
 		}

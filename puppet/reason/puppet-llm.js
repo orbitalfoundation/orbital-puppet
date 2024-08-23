@@ -22,7 +22,7 @@ async function test() {
 // @todo may want to return an error message on failure
 //
 
-export async function puppet_reason_llm(reason,messages) {
+export async function puppet_reason_llm(reason) {
 
 	// configure for various targets
 	if(reason.handler !== 'openai') {
@@ -46,7 +46,7 @@ export async function puppet_reason_llm(reason,messages) {
 	// encode blob for openai
 	props.body = JSON.stringify({
 		model: reason.model || 'gpt-3.5-turbo',
-		messages
+		messages:reason.messages
 	})
 
 	// url
