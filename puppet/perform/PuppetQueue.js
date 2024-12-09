@@ -15,11 +15,6 @@ export class PuppetQueue extends PuppetFace {
 	conversation = -1
 	segment = 0
 
-	update(time,delta) {
-		super.update(time,delta)
-		this.face_update(null,time,delta)
-	}
-
 	stop() {
 
 		// throw away anything in current conversation
@@ -52,7 +47,10 @@ export class PuppetQueue extends PuppetFace {
 
 			// skip to current conversation - stop old if any
 			if(performance.conversation > this.conversation && this.busy) {
-				if(this.conversation >= 0) this.stop()
+				if(this.conversation >= 0) {
+					console.warn("npc puppet inbound conversation is higher than current conversation",performance,this.conversation)
+					this.stop()
+				}
 			}
 
 			// throw away old conversations that arrived late
@@ -123,12 +121,16 @@ export class PuppetQueue extends PuppetFace {
 
 		// perform audio
 		if(performance.audio) {
-			if(!this.audio)this.audio = new Audio()
-			await this.audio.play(performance.audio,BREAK_DURATION,() => {
-				this.recent.completed = true
-				this.perform()
-			})
-			return
+			try {
+				if(!this.audio)this.audio = new Audio()
+				await this.audio.play(performance.audio,BREAK_DURATION,() => {
+					this.recent.completed = true
+					this.perform()
+				})
+				return
+			} catch(err) {
+				console.error("npm puppet audio is probably not enabled",err)
+			}
 		}
 
 		// advance right away to flush queue if no callbacks setup

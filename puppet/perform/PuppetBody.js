@@ -163,7 +163,8 @@ function _copy_bones(node,vrm) {
 	if(vrm) {
 		bones.armature = vrm.humanoid.normalizedHumanBonesRoot
 		Object.entries(VRM2Mixamo).forEach( ([k,v]) => {
-			bones[k] = bones[v] = vrm.humanoid.getNormalizedBoneNode(k) || {
+			bones[k] = v
+			bones[v] = vrm.humanoid.getNormalizedBoneNode(k) || {
 				position: new THREE.Vector3(),
 				quaternion: new THREE.Quaternion(),
 				scale: new THREE.Vector3(),

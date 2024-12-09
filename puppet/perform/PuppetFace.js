@@ -1,4 +1,5 @@
 
+
 import { PuppetBody } from './PuppetBody.js'
 import { RPMFace2Reallusion } from './RPMFace2Reallusion.js'
 import { animMoods } from '../shared/anim-moods.mjs'
@@ -8,11 +9,9 @@ const clamp = (num, a, b) => Math.max(Math.min(num, Math.max(a, b)), Math.min(a,
 
 const BREAK_DURATION = 100
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-// puppet face focused rigging support
-//
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+/// @summary puppet face focused rigging support
+///
 
 export class PuppetFace extends PuppetBody {
 
@@ -28,8 +27,7 @@ export class PuppetFace extends PuppetBody {
 	// mark if targets are 'dirty' or not and need updating; to reduce pressure on the engine
 	dirty = {}
 
-	// vrm hint
-	// see blender-puppet-rpm-to-vrm.py which injects rpm target names into vrm rigs
+	// vrm hint - see blender-puppet-rpm-to-vrm.py which injects rpm target names into vrm rigs
 	vrm = null
 
 	// the current animation sequence that is being played; consists of a series of internal time slice effects
@@ -38,65 +36,52 @@ export class PuppetFace extends PuppetBody {
 	// an idea (being explored) of overall relaxation so that when sequences are done the entire puppet face can be gently brought to rest
 	relaxation = 0
 
-	//
-	// @summary stop the current effect
-	//
+	// head
+	head = null
 
-	stop() {
-		console.warn('puppet face stopping')
-		super.stop()
-		this.relaxation = 0
-		this.sequence = []
-		this._emote('neutral')
-		// @todo now is a good time to look at player
-	}
+	//
+	// @summary associate with a collection of geometry from a configuration
+	//
 
 	async load(config) {
-
 		await super.load(config)
-
 		this.node = config.node
 		this.vrm = config.vrm
 		this.camera = config.camera
 		this.gazelimit = config.gazelimit
 		this.gazeanim = config.gazeanim
-
-		this._morphable_init(this.node,this.vrm)
-
-		// @todo cannot animate reallusion bodies yet because body bones are not remapped
-
-		// pull out head and eyes by hand
-		this.head = this.bones[config.headname || "Head"]
+		this.head = config.head
 		this.left = this.bones["LeftEye"]
 		this.right = this.bones["RightEye"]
+		this._morphable_init(this.node,this.vrm)
+	}
 
-		// estimate eye height
-		this.eyey = this.left ? this.left.position.y : 1.7
+	//
+	// @summary relax all effects immediately
+	//
 
-		// perform an animation right now if any
-		if(config.emotion) {
-			this._emote(config.emotion)
-		}
-
+	stop() {
+		super.stop()
+		this.relaxation = 0
+		this.sequence = []
+		this.emote('neutral')
 	}
 
 	///
-	/// set current performance
-	/// if there is another performance active this may overwrite it (effectively halting it)
-	/// audio will already have been started in sync with this performance
+	/// @summary start a fresh facial performance overwriting the previous which should be done
 	///
 
 	face_start_performance(perf) {
 
-		// an emotion can be specified
+		// an emotion can be specified explicitly
 		if(perf.emotion) {
-			this._emote(perf.emotion)
+			this.emote(perf.emotion)
 		}
 
-		// try treat actions as facial emotions
+		// try treat actions as facial emotions as well - not all actions are emotions however
 		if(perf.actions) {
 			perf.actions.forEach( (action) => {
-				this._emote(action)
+				this.emote(action)
 			})
 		}
 		// start audio visual performance
@@ -104,9 +89,9 @@ export class PuppetFace extends PuppetBody {
 			const o = lipsyncConvert(perf.whisper,"en")
 			this.sequence = o.anim || []
 
-			// add a fudge factor
-			// @todo remove in lipsyncConvert
-			// set relaxation time in future
+			// this is a test idea - i want to orchestrate face relaxation in a graceful way when done a performance
+			// set a relaxation time in future based on estimation of when relaxation should start
+			// @todo remove this fudge factor from the lipsync-converter or rewrite that converter completely
 			const time = performance.now()
 			for(const item of this.sequence) {
 				item.ts[0] += time + 150
@@ -114,33 +99,37 @@ export class PuppetFace extends PuppetBody {
 				item.ts[2] += time + 150
 				this.relaxation = Math.max(this.relaxation,item.ts[1])
 			}
+
+			// may gaze at the player when starting an utterance
+			console.log('*** npc puppet gaze begin',perf.segment)
+			this.gaze(-1,-1,perf.segment < 2 ? 0 : 0.5 )
+
 		}
 	}
 
 	///
-	/// update face over time
-	/// @todo passing the animation is a bit sloppy - this level of engine should have direct access
+	/// @summary update facial performance every frame
 	///
 
-	face_update(animation,time,delta) {
+	update(time,delta) {
 
-		// fow now use built in time
+		// @todo improve - for now use performance.now() because i am setting fiddly little timer based effects and conceptually i don't have access to outer scope time from this module
 		time = performance.now()
 
-		// always blink
-		this._blink(time,delta)
+		// update body
+		super.update(time,delta)
 
-		// gaze during the default context - @todo later improve context to be more general
-// @todo renable
-//		if(!this.gazeanim || this.gazeanim === animation) {
-			this._gaze(time,delta)
-//		}
+		// blink
+		this._blink_update(time,delta)
 
-		// if relaxing then relax - this is experimental - may change approach
+		// gaze
+		this._gaze_update(time,delta)
+
+		// an experimental approach for relaxation after effects - may revise
 		if(this.relaxation < time ) {
 
 			// perform small facial ticks while relaxing
-			this._facial_ticks(time,delta)
+			this._facial_ticks_update(time,delta)
 
 			// slightly dampen effects to zero over time
 			this._apply_to_face(time,delta,0.9)
@@ -150,25 +139,42 @@ export class PuppetFace extends PuppetBody {
 		else {
 
 			// apply viseme performance over time
-			this._animate_visemes(time,delta)
+			this._visemes_update(time,delta)
 
 			// apply performance to 3js avatar / puppet
 			this._apply_to_face(time,delta)
 
 		}
 
-		// vrm has a special update helper
+		// vrm has a special update helper - @todo this may not be needed for infinite reality
 		if(this.vrm) {
 			this.vrm.update(delta/1000)
 		}
 
 	}
 
+	///
+	/// @summary set a facial emotion right now
+	/// @todo this could be a larger more complex performance system later on rather than a single frame
+	///
+
+	emote(emotion) {
+		//console.log('puppet face - trying to do an emotion',emotion)
+		if(!emotion || !emotion.length) return
+		const fields = animMoods[emotion.toLowerCase()]
+		if(!fields || !fields.baseline) return
+		Object.entries(fields.baseline).forEach(([k,v]) => {
+			this.targets[k] = v
+		})
+		// hold face for a while as a test @todo this feels a bit artificial
+		this.relaxation = Math.max( this.relaxation, performance.now() + 3000 )
+	}
+
 	//
-	// blink both eyes at a frequency and velocity
+	// blink both eyes at a frequency and velocity - @todo this could be improved
 	//
 
-	_blink(time,delta) {
+	_blink_update(time,delta) {
 		const v = clamp(Math.sin(time/900)*800-800+1,0,1)
 		this.targets.eyeBlinkLeft = v
 		this.targets.eyeBlinkRight = v
@@ -178,9 +184,7 @@ export class PuppetFace extends PuppetBody {
 	// small random facial ticks @todo could be improved to be more random
 	//
 
-	tick_current = 0
-
-	_facial_ticks(time,delta) {
+	_facial_ticks_update(time,delta) {
 
 		const ticks = [
 			'mouthDimpleLeft','mouthDimpleRight', 'mouthLeft', 'mouthPress',
@@ -209,72 +213,112 @@ export class PuppetFace extends PuppetBody {
 
 	}
 
-	//
-	// emotion
-	// @todo right now this just sets the baseline emotion - it could be nice to play the sequence
-	//
+	tick_current = 0
 
-	_emote(emotion) {
-		//console.log('puppet face - trying to do an emotion',emotion)
-		if(!emotion || !emotion.length) return
-		const fields = animMoods[emotion.toLowerCase()]
-		if(!fields || !fields.baseline) return
-		Object.entries(fields.baseline).forEach(([k,v]) => {
-			this.targets[k] = v
-		})
-		// hold face for a while as a test @todo this feels a bit artificial
-		this.relaxation = Math.max( this.relaxation, performance.now() + 3000 )
+	///
+	/// @summary gaze control; typically gaze on utterances and on player in view - for a moment
+	///
+	/// delay to start may be supplied
+	/// duration may be supplied
+	/// a randomness may be supplied
+	///
+
+	gaze(delay=-1,duration=-1,randomness=0) {
+
+		// may do nothing if there is randomness
+		if(randomness && Math.random() > randomness ) return
+
+		// capture the live head orientation to reduce snapping as gaze begins
+		this.headCurrentQuaternion.copy(this.head.quaternion)
+
+		// begin after some delay
+		if(delay<0) delay = Math.random() * 1000
+
+		// proceed for some duration
+		if(duration<0) duration = Math.random() * 1000 + 4000
+
+		this._gaze_begin = performance.now() + delay
+		this._gaze_end = performance.now() + delay + duration
+		console.log("**** npc puppet setting gaze start end",this._gaze_begin,this._gaze_end)
 	}
 
-	//
-	// gaze at player - this could be a bit less intense - like only triggered at the start of a sentence
-	//
+	_gaze_begin = 0
+	_gaze_end = 0
+	_gaze_seen = false
 
-	_gaze(time) {
+	_gaze_update(time) {
 
 		const camera = this.camera
 		const body = this.node
 		const head = this.head
-		if(!body || !camera) return
+		if(!head || !body || !camera) return
 
-		if(body && !head) {
-			//const m = new THREE.Matrix4().lookAt(camera.position, body.position, body.up)
-			//const q = new THREE.Quaternion().setFromRotationMatrix(m)
-			//body.quaternion.slerp(q, 0.07)
-			return
-		}
+		//if(!head) {
+		//	const m = new THREE.Matrix4().lookAt(camera.position, body.position, body.up)
+		//	const q = new THREE.Quaternion().setFromRotationMatrix(m)
+		//	body.quaternion.copy(q)
+		//	return
+		//}
 
-		const left = this.left
-		const right = this.right
-
-		const headToCamera = new THREE.Vector3().subVectors(camera.position, head.getWorldPosition(new THREE.Vector3())).normalize()
+		// determine if player is physically visible
+		const cameraPosition = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld)
+		cameraPosition.y -= 0.5
+		const headPosition = new THREE.Vector3().setFromMatrixPosition(head.matrixWorld)
+		const headToCamera = new THREE.Vector3().subVectors(cameraPosition, headPosition ).normalize()
 		const bodyForwardWorld = new THREE.Vector3(0,0,1).clone().applyQuaternion(body.getWorldQuaternion(new THREE.Quaternion())).normalize()
 		const angle = bodyForwardWorld.angleTo(headToCamera)
-
-		const targetQuaternion = new THREE.Quaternion()
+		const distance = cameraPosition.distanceTo(headPosition)
 		const gazelimit = this.gazelimit || 1
-		if(angle<gazelimit) {
-			const targetPosition = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld)
-			const headPosition = new THREE.Vector3().setFromMatrixPosition(head.matrixWorld)
-			const m = new THREE.Matrix4().lookAt(targetPosition, headPosition, head.up)
-			targetQuaternion.setFromRotationMatrix(m)
-			const bodyQuaternion = new THREE.Quaternion().copy(body.getWorldQuaternion(new THREE.Quaternion()))
-			targetQuaternion.premultiply(bodyQuaternion.invert())
-			head.quaternion.slerp(targetQuaternion, 0.07)
-			if(left && right) {
-				left.lookAt(targetPosition)
-				right.lookAt(targetPosition)
+		const seen = angle<gazelimit && distance < 10.00
+
+		// determine if there is a state transition to becoming visible
+		if(seen && !this._gaze_seen) {
+			this.gaze()
+		}
+		this._gaze_seen = seen
+		
+		// active focusing has been requested for this duration?
+		time = performance.now()
+		const focus = this._gaze_begin < time && this._gaze_end > time
+
+		// if visible and actively being focused on then focus on the player - doing so quickly
+		if(seen && focus) {
+			const m = new THREE.Matrix4().lookAt(cameraPosition, headPosition, head.up)
+			this.headTargetQuaternion.setFromRotationMatrix(m)
+			const bodyQuaternion = body.getWorldQuaternion(new THREE.Quaternion())
+			this.headTargetQuaternion.premultiply(bodyQuaternion.invert())
+			this.headCurrentQuaternion.slerp(this.headTargetQuaternion,0.07)
+			head.quaternion.copy(this.headCurrentQuaternion)
+			if(this.left && this.right) {
+				this.left.lookAt(cameraPosition)
+				this.right.lookAt(cameraPosition)
 			}
-	    } else {
-			head.quaternion.slerp(targetQuaternion, 0.07)
-			// @todo there seems to be some kind of relative motion for the body parts
-			if(left && right) {
-				left.quaternion.set(0,0,0,1)
-				right.quaternion.set(0,0,0,1)
+		}
+
+		// test: if actively doing something then don't relax to origin - just leave things be
+		else if(seen && this.relaxation > time) {
+			this.headCurrentQuaternion.slerp(this.headTargetQuaternion,0.1)
+			head.quaternion.copy(this.headCurrentQuaternion)
+			if(this.left && this.right) {
+				this.left.lookAt(cameraPosition)
+				this.right.lookAt(cameraPosition)
 			}
-	    }
+		}
+
+		// relax to origin if not seen and or not focus - and do so slowly
+		else {
+			this.headCurrentQuaternion.slerp(this.headDefaultQuaternion,0.03)
+			head.quaternion.copy(this.headCurrentQuaternion)
+			if(this.left && this.right) {
+				this.left.quaternion.set(0,0,0,1)
+				this.right.quaternion.set(0,0,0,1)
+			}
+		}
 	}
 
+	headDefaultQuaternion = new THREE.Quaternion()
+	headCurrentQuaternion = new THREE.Quaternion()
+	headTargetQuaternion = new THREE.Quaternion()
 
 	//
 	// given a large collection of targets, apply those that are in the right time window
@@ -301,11 +345,11 @@ export class PuppetFace extends PuppetBody {
 		'viseme_U': 0,
 	}
 
-	_animate_visemes(time,delta) {
+	_visemes_update(time,delta) {
 
 		const attack = 50
 		const release = 60
-		time = performance.now()
+		time = performance.now() // @todo revert to passed once stable
 
 		const visemes = this.visemes
 
