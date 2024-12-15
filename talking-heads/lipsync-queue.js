@@ -6,9 +6,9 @@
 * lipsync support from Mika's talking heads demo https://github.com/met4citizen
 */
 
-import { animEmojis } from './anim-emojis.mjs'
+import { animEmojis } from './anim-emojis.js'
 
-import { LipsyncEn } from './lipsync-en.mjs'
+import { LipsyncEn } from './lipsync-en.js'
 
 const lipsync = { en: new LipsyncEn() }
 
