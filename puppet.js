@@ -56,6 +56,10 @@ async function resolve(blob) {
 
 }
 
+///
+/// this is a system that gets run every tick and watches events, it tracks puppets and helps choregraph their behavior
+///
+
 export const puppet_system = {
 	uuid,
 	resolve,
