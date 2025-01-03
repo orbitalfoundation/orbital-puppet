@@ -73,7 +73,7 @@ PuppetChatInput.addEventListener('keydown', (e) => {
 PuppetChatSubmit.onclick = (e) => {
 	const text = PuppetChatInput.value
 	textInputClear()
-	sendToLLM(text)
+	sendToPuppet(text)
 	textToChatHistory(text,'You')
 }
 
@@ -97,7 +97,7 @@ function setStatus(text='Ready',style='ready') {
 	PuppetChatStatus.textContent = text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function sendToLLM(text) {
+function sendToPuppet(text) {
 	if(!text || !text.length) return
 	const interrupt = performance.now()
 	sys({

@@ -103,7 +103,7 @@ async function llm_resolve(agent,blob) {
 
 		// configure body - with some flexibility hacked in for other servers aside from openai
 		let body = {
-			model: 'gpt-3.5-turbo',
+			model: agent.llm_model || 'gpt-3.5-turbo',
 			messages:llm.messages
 		}
 		if(agent.llm_url && agent.llm_url.includes('openai') == false) {
@@ -115,8 +115,8 @@ async function llm_resolve(agent,blob) {
 		const props = {
 			method: 'POST',
 			headers: {
+				'Authorization': `Bearer ${agent.llm_auth||""}`,
 				'Content-Type': 'application/json',
-				Authorization: `Bearer ${agent.llm_auth||""}`
 			},
 			body
 		}
@@ -257,6 +257,7 @@ async function resolve(blob,sys) {
 		agent.llm_local = blob.llm_configure.local
 		agent.llm_url = blob.llm_configure.url
 		agent.llm_auth = blob.llm_configure.auth
+		agent.llm_model = blob.llm_configure.model
 		if(agent.llm_local) load()
 	}
 }
