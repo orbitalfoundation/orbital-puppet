@@ -121,27 +121,33 @@ async function llm_resolve(agent,blob) {
 			body
 		}
 
-		// fetch llm response
+		// fetch llm response - this must not block so do not await
 		try {
 
-			const response = await fetch(agent.llm_url,props)
-			if(!response.ok) {
-				//sys({breath:{breath:"error talking to remote url",ready:true,final:true,rcounter,bcounter,interrupt}})
-				console.error("llm reasoning error",response)
-			} else {
-				const json = await response.json()
-				// hack: handle output from a couple other kinds of systems as well as openai
-				let sentence
-				if(json.choices) {
-					sentence = json.choices[0].message.content
-				} else {
-					sentence = json.text
+			fetch(agent.llm_url,props).then(response => {
+
+				if(!response.ok) {
+					console.error("llm reasoning error",response)
+					return
 				}
-				const fragments = sentence.split(/[.!?]|,/);
-				fragments.forEach(breath => {
-					sys({breath:{breath,ready:true,final:true,rcounter,bcounter,interrupt}})
+
+				response.json().then( json => {
+					let sentence = null
+					if(json.choices) {
+						// openai
+						sentence = json.choices[0].message.content
+					} else if(json.text) {
+						// some other weird system
+						sentence = json.text
+					}
+					if(sentence) {
+						const fragments = sentence.split(/[.!?]|,/);
+						fragments.forEach(breath => {
+							sys({breath:{breath,ready:true,final:true,rcounter,bcounter,interrupt}})
+						})
+					}
 				})
-			}
+			})
 
 		} catch(err) {
 			sys({breath:{breath:"error talking to remote url",ready:true,final:true,rcounter,bcounter,interrupt}})
