@@ -48,6 +48,36 @@ export const parts = { load: [
 ]}
 
 //
+// config options
+// note the hack in the name to force this to be the last export due to the fact that exports are always alphabetical
+// and we want this to load _after_ the services above
+//
+
+export const zzz_configuration = {configuration:{
+	// microphone on or off
+	microphone: true,
+	// system stt
+	builtin_stt: false,
+	// barge in allowed - allow spoken aborts (although important for speech to speech it can be overly annoying in noisy environments)
+	bargein: false,
+	// auto-submit complete spoken utterances; a nice feature in voice to voice interactions
+	autosubmit: false,
+	// use local llm (fetched as a wasm module but sadly does not run on mobile and is compute heavy)
+	local: false,
+	// remote url of llm service if any
+	url: null,
+	// bearer token for authentication for remote fetch - @todo note this is exposed on the client - may want to use jwt
+	auth: null,
+	// override any llm specific pre-prompt for the system as in 'you are a helpful digital assistant'
+	prompt: null,
+	// for openai this is a low cost model
+	model: 'gpt-3.5-turbo',
+	// specific voice for piper
+	voice: null,
+}}
+
+
+//
 // @test - replaced the stt to ux pubsub broadcast with a more narrow explicit wire
 // @note - alphabetical order of exports, wires has to come last right in export naming
 

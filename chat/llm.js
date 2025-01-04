@@ -66,6 +66,14 @@ async function load() {
 
 async function llm_resolve(agent,blob) {
 
+	// if bargein is enabled then ANY traffic will stop ALL llm activity
+	// in a similar way if autosubmit is disabled the systems upstream will not send final
+	// but if barge is is disabled here then we actually have to check that here and NOT stop all activity
+
+	if(blob.human.spoken && !blob.human.final && !agent.bargein) {
+		return
+	}
+
 	// always stop local llm if new work comes in
 	if(agent.thinking && agent.engine && agent.engine.interruptGenerate) {
 		agent.engine.interruptGenerate()
@@ -255,15 +263,16 @@ async function resolve(blob,sys) {
 		}
 	}
 
-	// configuration hack - local or remote?
-	if(blob.llm_configure) {
+	// configuration hack - local or remote? @todo apply to correct llm only later
+	if(blob.configuration) {
 		let llms = Object.values(this._llms)
 		if(!llms.length) return
 		let agent = llms[0]
-		agent.llm_local = blob.llm_configure.local
-		agent.llm_url = blob.llm_configure.url
-		agent.llm_auth = blob.llm_configure.auth
-		agent.llm_model = blob.llm_configure.model
+		if(blob.configuration.hasOwnProperty('local')) agent.llm_local = blob.configuration.local
+		if(blob.configuration.hasOwnProperty('url')) agent.llm_url = blob.configuration.url
+		if(blob.configuration.hasOwnProperty('auth')) agent.llm_auth = blob.configuration.auth
+		if(blob.configuration.hasOwnProperty('model')) agent.llm_model = blob.configuration.model
+		if(blob.configuration.hasOwnProperty('bargein')) agent.llm_bargein = blob.configuration.bargein
 		if(agent.llm_local) load()
 	}
 }

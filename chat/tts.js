@@ -347,6 +347,12 @@ function resolve(blob,sys) {
 	// when was most recent bargein detected?
 	if(blob.human && blob.human.interrupt) this._bargein = blob.human.interrupt
 
+	// if barge in is NOT enabled then ignore any non final audio
+	// any final audio always flushes and resets all 
+	if(blob.human.spoken && !blob.human.final && !this.bargein) {
+		return
+	}
+
 	// barge in? - @todo in a scenario with multiple llms it may not make sense to stop all of them on any interruption
 	if(blob.human) {
 		this._queue = []

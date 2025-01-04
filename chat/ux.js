@@ -1,14 +1,6 @@
 
 const uuid = 'ux_system'
 
-// global config
-let allow_localllm = false
-let allow_bargein = false
-let allow_microphone = false
-let allow_autosubmit = false
-let llm_url = "https://api.openai.com/v1/chat/completions"
-let llm_auth = ""
-let desired = true
 let systemPrompt = "You are a helpful digital agent"
 let typing = 0
 let rcounter = 1
@@ -34,27 +26,30 @@ PuppetChatClose.onclick = () => {
 
 PuppetChatMike.onclick = (e) => {
 	e.target.classList.toggle('off')
-	allow_microphone = e.target.classList.toggle('on')
-	textToChatHistory(allow_microphone ? 'Microphone on' : 'Microphone off')
+	const microphone = e.target.classList.toggle('on')
+	textToChatHistory(microphone ? 'Microphone on' : 'Microphone off')
+	sys({configuration:{microphone}})
 }
 
 PuppetChatLocal.onclick = (e) => {
 	e.target.classList.toggle('off')
-	allow_localllm = e.target.classList.toggle('on')
-	sys({llm_configure:{local:allow_localllm,url:llm_url,auth:llm_auth}})
-	textToChatHistory(allow_localllm ? 'Local LLM' : 'External LLM')
+	const local = e.target.classList.toggle('on')
+	textToChatHistory(local ? 'Local LLM' : 'External LLM')
+	sys({configuration:{local}})
 }
 
 PuppetChatBarge.onclick = (e) => {
 	e.target.classList.toggle('off')
-	allow_bargein = e.target.classList.toggle('on')
-	textToChatHistory(allow_bargein ? 'Barge-in Enabled' : 'Barge-in Disabled')
+	const bargein = e.target.classList.toggle('on')
+	textToChatHistory(bargein ? 'Barge-in Enabled' : 'Barge-in Disabled')
+	sys({configuration:{bargein}})
 }
 
 PuppetChatAuto.onclick = (e) => {
 	e.target.classList.toggle('off')
-	allow_autosubmit = e.target.classList.toggle('on')
-	textToChatHistory(allow_autosubmit ? 'Voice to Voice On' : 'Voice to Voice Off')
+	const autosubmit = e.target.classList.toggle('on') ? true: false
+	textToChatHistory(autosubmit ? 'Voice to Voice On' : 'Voice to Voice Off')
+	sys({configuration:{autosubmit}})
 }
 
 PuppetChatInput.oninput = (e) => {
@@ -182,16 +177,6 @@ function resolve(blob,sys) {
 		// Show spoken partials or completed
 		PuppetChatInput.value = text
 
-		// If barge in events are disabled then don't allow them to percolate through
-		if(!human.final && !allow_bargein) {
-			return { force_abort_sys: true }
-		}
-
-		// Auto-submissions are disabled? Do allow partials (barge in events) through
-		if(human.final && !allow_autosubmit) {
-			return { force_abort_sys: true }			
-		}
-
 	} else {
 
 		// debugging - bypass llm if text starts with 'say' - and throw away the original request
@@ -204,18 +189,18 @@ function resolve(blob,sys) {
 
 		// debugging - auth, url - and throw away original request
 		if(text.startsWith('auth') && text.length > 5) {
-			llm_auth = text.substring(5).trim()
+			const auth = text.substring(5).trim()
 			const interrupt = performance.now()
-			sys({llm_configure:{local:allow_localllm,url:llm_url,auth:llm_auth}})
+			sys({configure:{auth}})
 			textToChatHistory('Set Remote Auth')
 			return { force_abort_sys: true }
 		}
 
 		// debugging - auth, url - and throw away original request
 		if(text.startsWith('url') && text.length > 5) {
-			llm_url = text.substring(4).trim()
+			const url = text.substring(4).trim()
 			const interrupt = performance.now()
-			sys({llm_configure:{local:allow_localllm,url:llm_url,auth:llm_auth}})
+			sys({configure:{url}})
 			textToChatHistory('Set Remote URL')
 			return { force_abort_sys: true }
 		}
@@ -246,3 +231,17 @@ export const ux_system = {
 	},
 	resolve
 }
+
+/*
+
+now i am getting non final barge in events to the ux
+
+and i am also blocking auto submit earlier
+
+	if i publish the right config events at the ux level then i don't need to do them here
+
+
+
+
+
+*/

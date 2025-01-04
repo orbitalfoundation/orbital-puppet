@@ -232,9 +232,15 @@ const worker = new Worker(URL.createObjectURL(new Blob([xenovaWorker],{type:'tex
 // https://github.com/ricky0123/vad - voice activity detector - used to pluck out chunks of voice from microphone
 // has built in echo cancellation
 // system voice recognition doesn't participate in audio echo cancellation - it is pretty broken in other ways also
+// @todo for code clarity this actually could be a class - it has some declarations associated with it
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const positiveSpeechThreshold = 0.8
+
+//system_stt: false,
+//microphone: true,
+//bargein: false,
+//autosubmit: false,
 
 async function start() {
 
@@ -251,6 +257,9 @@ async function start() {
 	// publish a message to pub sub observers
 	//
 	const publish = (human={}) => {
+
+		// @todo actually disable microphone, for now i just ingore all events instead
+		if(!this.microphone) return
 
 		const defaults = {
 			text:"",
@@ -272,6 +281,10 @@ async function start() {
 		// merge overtop defaults
 		human = Object.assign(defaults,human)
 
+		// if autosubmit is off then block 'final' events
+		// we have to allow non-final or barge in events to percolate through because we need non-final sentences for ux
+		if(!this.autosubmit) human.final = false
+
 		// publish - testing out an idea of formal outputs rather than directly to sys()
 		context.human_out({ bargein: true, human },sys)
 
@@ -287,12 +300,12 @@ async function start() {
 		const confidence = probs && probs.isSpeech ? probs.isSpeech : 1
 		if(confidence < positiveSpeechThreshold) return
 
-		// publish barge in to local pubsub observers
-		const comment = `User vocalization ${bcounter} heard ${audio?'final':''}`
+		// publish barge in to local pubsub observers - marking it as not final here
+		const comment = `User vocalization heard ${bcounter}`
 		publish({confidence,final:false,comment})
 
-		// if actual audio has arrived then may pass it onto tts
-		if(audio && !this.use_system_voice_recognition) {
+		// if actual audio has arrived then may pass it onto stt for real processing
+		if(audio && !this.system_stt) {
 			worker.postMessage({
 				audio,
 				model: DEFAULTS.DEFAULT_MODEL,
@@ -329,14 +342,15 @@ async function start() {
 
 	    const comment = final ? `STT final: ${text}` : `STT in-progress: ${text}`
 
-		// workaround hack
+		// workaround hack - there is a bug in the vad where it needs to be reset - @todo examine
 		if(final && this._vad_timeout) { clearTimeout(this._vad_timeout); this._vad_timeout = 0 }
 
+		// publish to the local pubsub group
 		publish({text,final,comment})
 	}
 
 	//
-	// resolve barge-in events and final audio
+	// start up the vad - which will detect barge-in events and final audio and generally driven stt processing
 	//
 
 	try {
@@ -385,9 +399,12 @@ export const stt_system = {
 	// generally it feels better to package a component as a single blob and leave root namespace open
 
 	stt: {
-		canonical:true, // @todo other ways to reserve schema namespaces for components
-		schema:true,
-		use_system_voice_recognition: false,
+		canonical:true, // @todo think of other ways to reserve schema namespaces for components
+		schema:true, // a schema reservation idea @todo continue to refine this idea
+		system_stt: false,
+		microphone: true,
+		bargein: false,
+		autosubmit: false,
 		start,
 
 		// @test this is a test - this method handle can be overridden by a direct wire if desired
@@ -400,14 +417,31 @@ export const stt_system = {
 
 	// watch public event streams - @todo could use a filter
 	resolve: function(blob,sys) {
-		if(!blob || !blob.stt || !blob.stt.hasOwnProperty('desired')) return
-		this.stt.use_system_voice_recognition = blob.stt.desired ? true : false
+		if(!blob || blob.tick || blob.time) return
+		if(blob.configuration) {
+			if(blob.configuration.hasOwnProperty('system_stt')) {
+				// @todo tbd. system stt sucks so badly it is not used - but it should be enabled at least at some point
+				this.stt.system_stt = blob.configuration.system_stt
+			}
+			if(blob.configuration.hasOwnProperty('microphone')) {
+				// @todo turn microphone off or on - @todo always on for now - i just block the return data
+				this.stt.microphone = blob.configuration.microphone
+			}
+			if(blob.configuration.hasOwnProperty('bargein')) {
+				// @todo right now we have to publish non-final or 'barge in' because ux needs to see spoken fragments
+				// so this doesn't actually do anything here right now
+				this.stt.bargein = blob.configuration.bargein
+			}
+			if(blob.configuration.hasOwnProperty('autosubmit')) {
+				// for now we just block final events; so they should show up in ux as incomplete or not final events
+				this.stt.autosubmit = blob.configuration.autosubmit
+			}
+		}
 	},
 
 	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }
 
-// start up immediately - no point in waiting
+// start up immediately - no point in waiting - as a test this start() method is attached to the stt component
 stt_system.stt.start()
-
 
