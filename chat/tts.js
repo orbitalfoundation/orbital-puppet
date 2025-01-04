@@ -306,7 +306,7 @@ async function _resolve_queue() {
 		const results = await chew(text)
 
 		// interrupted?
-		if(this._bargein > interrupt) {
+		if(this._last_interrupt > interrupt) {
 			this._queue = []
 			return
 		}
@@ -326,7 +326,7 @@ async function _resolve_queue() {
 		//console.log(uuid,'it took',time3-time1,'milliseconds to say',text,'(',time1,time2,time3,')')
 
 		// interrupted?
-		if(this._bargein > interrupt) {
+		if(this._last_interrupt > interrupt) {
 			this._queue = []
 			return
 		}
@@ -344,14 +344,20 @@ async function _resolve_queue() {
 
 function resolve(blob,sys) {
 
-	// when was most recent bargein detected?
-	if(blob.human && blob.human.interrupt) this._bargein = blob.human.interrupt
+	// configuration
+	if(blob.configuration) {
+		if(blob.configuration.hasOwnProperty('bargein')) this._bargein = blob.configuration.bargein
+		// @todo voice
+	}
 
 	// if barge in is NOT enabled then ignore any non final audio
 	// any final audio always flushes and resets all 
-	if(blob.human.spoken && !blob.human.final && !this.bargein) {
+	if(blob.human && blob.human.spoken && !blob.human.final && !this._bargein) {
 		return
 	}
+
+	// when was most recent bargein detected?
+	if(blob.human && blob.human.interrupt) this._last_interrupt = blob.human.interrupt
 
 	// barge in? - @todo in a scenario with multiple llms it may not make sense to stop all of them on any interruption
 	if(blob.human) {
@@ -370,6 +376,7 @@ export const tts_system = {
 	resolve,
 	_queue:[],
 	_resolve_queue,
-	_bargein: 0,
+	_last_interrupt: 0,
+	_bargein: false,
 	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }

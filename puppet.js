@@ -5,6 +5,18 @@ const isServer = (typeof window === 'undefined') ? true : false
 
 async function resolve(blob) {
 
+	// configuration
+	if(blob.configuration) {
+		if(blob.configuration.hasOwnProperty('bargein')) this._bargein = blob.configuration.bargein
+		// @todo voice
+	}
+
+	// if barge in is NOT enabled then ignore any non final audio
+	// any final audio always flushes and resets all 
+	if(blob.human && blob.human.spoken && !blob.human.final && !this._bargein) {
+		return
+	}
+
 	// client side only
 	if(isServer) return
 
