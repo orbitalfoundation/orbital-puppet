@@ -5,18 +5,6 @@ const isServer = (typeof window === 'undefined') ? true : false
 
 async function resolve(blob) {
 
-	// configuration
-	if(blob.configuration) {
-		if(blob.configuration.hasOwnProperty('bargein')) this._bargein = blob.configuration.bargein
-		// @todo voice
-	}
-
-	// if barge in is NOT enabled then ignore any non final audio
-	// any final audio always flushes and resets all 
-	if(blob.human && blob.human.spoken && !blob.human.final && !this._bargein) {
-		return
-	}
-
 	// client side only
 	if(isServer) return
 
@@ -26,8 +14,8 @@ async function resolve(blob) {
 		return
 	}
 
-	// stop all puppets for now on interruption or stop request
-	if(blob.human || blob.stop) {
+	// stop all puppets on barge in - @todo later only stop puppet near player in space
+	if(blob.human && blob.human.bargein) {
 		Object.values(this._puppets).forEach(puppet => puppet.stop() )
 	}
 

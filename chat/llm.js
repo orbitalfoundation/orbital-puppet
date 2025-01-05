@@ -66,23 +66,22 @@ async function load() {
 
 async function llm_resolve(agent,blob) {
 
-	// if bargein is enabled then ANY traffic will stop ALL llm activity
-	// in a similar way if autosubmit is disabled the systems upstream will not send final
-	// but if barge is is disabled here then we actually have to check that here and NOT stop all activity
-
-	if(blob.human.spoken && !blob.human.final && !agent.bargein) {
+	// return if nothing noteworthy to do - caller MUST set bargein for llm to do work
+	if(!blob.human.bargein) {
 		return
 	}
+
+	// discard work older than this
+	agent._last_interrupt = performance.now()
 
 	// always stop local llm if new work comes in
 	if(agent.thinking && agent.engine && agent.engine.interruptGenerate) {
 		agent.engine.interruptGenerate()
 		agent.thinking = false
-		// @todo stop remote
 	}
 
-	// if utterance is incomplete (such as merely a barge in) then done
-	if(!blob.human || !blob.human.final) return
+	// if utterance is incomplete (such as a barge in) then done - caller MUST set final also
+	if(!blob.human.final) return
 
 	// get text if any
 	const text = blob.human.text
@@ -90,21 +89,21 @@ async function llm_resolve(agent,blob) {
 
 	const llm = agent.llm
 
-	// set llm pre-prompt configuration
+	// set llm pre-prompt configuration - @note - a hack - @todo may remove
 	if(blob.human.systemContent) {
 		llm.messages[0].content = blob.human.systemContent
+	}
+	if(agent.llm_prompt) {
+		llm.messages[0].content = agent.llm_prompt
 	}
 
 	// stuff new human utterance onto the llm reasoning context
 	llm.messages.push( { role: "user", content:text } )
 
-	// when was most recent bargein detected?
-	if(blob.human && blob.human.interrupt) agent._bargein = blob.human.interrupt
-
 	// this is the highest counter that the callbacks will know about
 	const rcounter = blob.human.rcounter || 1
 	let bcounter = blob.human.bcounter || 1
-	const interrupt = blob.human.interrupt || 0
+	const interrupt = performance.now()
 
 	// use a remote endpoint?
 	if(!agent.llm_local) {
@@ -139,6 +138,11 @@ async function llm_resolve(agent,blob) {
 					return
 				}
 
+				// throw away old traffic
+				if(interrupt < agent._last_interrupt) {
+					return
+				}
+
 				response.json().then( json => {
 					let sentence = null
 					if(json.choices) {
@@ -166,18 +170,16 @@ async function llm_resolve(agent,blob) {
 	}
 
 	//
-	// local support
+	// local support - ignore till ready
 	//
 
-	// if got something to say but not ready and is local then try load and just report not ready
 	if(!ready) {
 		load()
-		sys({breath:{breath:'...still loading',ready:false,final:true}})
 		return
 	}
 
 	// start reasoning
-	blob.thinking = true
+	agent.thinking = true
 
 	// helper: publish each breath fragment as it becomes large enough
 	let breath = ''
@@ -210,8 +212,7 @@ async function llm_resolve(agent,blob) {
 			if(!chunk.choices || !chunk.choices.length || !chunk.choices[0].delta) continue
 			const content = chunk.choices[0].delta.content
 			const finished = chunk.choices[0].finish_reason
-			// is our work out of date? @todo call engine.interruptGenerate()?
-			if(blob._bargein > interrupt) return
+			if(agent._last_interrupt > interrupt) return // work is out of date
 			breath_helper(content,finished === 'stop')
 		}
 
@@ -219,8 +220,7 @@ async function llm_resolve(agent,blob) {
 		const paragraph = await engine.getMessage()
 		llm.messages.push( { role: "assistant", content:paragraph } )
 
-		// is our work out of date? @todo call engine.interruptGenerate()?
-		if(blob._bargein > interrupt) return
+		if(agent._last_interrupt > interrupt) return // work is out of date
 		sys({breath:{paragraph,breath:'',ready,final:true,rcounter,bcounter,interrupt}})
 	}
 
@@ -263,7 +263,7 @@ async function resolve(blob,sys) {
 		}
 	}
 
-	// configuration hack - local or remote? @todo apply to correct llm only later
+	// configuration hack for demo ux - @todo apply to correct llm only later
 	if(blob.configuration) {
 		let llms = Object.values(this._llms)
 		if(!llms.length) return
@@ -272,7 +272,7 @@ async function resolve(blob,sys) {
 		if(blob.configuration.hasOwnProperty('url')) agent.llm_url = blob.configuration.url
 		if(blob.configuration.hasOwnProperty('auth')) agent.llm_auth = blob.configuration.auth
 		if(blob.configuration.hasOwnProperty('model')) agent.llm_model = blob.configuration.model
-		if(blob.configuration.hasOwnProperty('bargein')) agent.llm_bargein = blob.configuration.bargein
+		if(blob.configuration.hasOwnProperty('prompt')) agent.llm_prompt = blob.configuration.prompt
 		if(agent.llm_local) load()
 	}
 }
@@ -280,7 +280,6 @@ async function resolve(blob,sys) {
 export const llm_system = {
 	uuid,
 	resolve,
-	_bargein:0,
 	_llms: {}
 	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }

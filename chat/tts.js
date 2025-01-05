@@ -339,36 +339,24 @@ async function _resolve_queue() {
 }
 
 //
-// resolve - @note must not be async else will stall rest of pipeline
+// resolve
+// @note must not use await else will stall rest of pipeline
 //
 
 function resolve(blob,sys) {
 
-	// configuration
-	if(blob.configuration) {
-		if(blob.configuration.hasOwnProperty('bargein')) this._bargein = blob.configuration.bargein
-		// @todo voice
-	}
-
-	// if barge in is NOT enabled then ignore any non final audio
-	// any final audio always flushes and resets all 
-	if(blob.human && blob.human.spoken && !blob.human.final && !this._bargein) {
-		return
-	}
-
-	// when was most recent bargein detected?
-	if(blob.human && blob.human.interrupt) this._last_interrupt = blob.human.interrupt
-
-	// barge in? - @todo in a scenario with multiple llms it may not make sense to stop all of them on any interruption
-	if(blob.human) {
+	// bargein sets the current age limit of valid data
+	if(blob.human && blob.human.bargein) {
+		this._last_interrupt = performance.now()
 		this._queue = []
 	}
 
 	// queue breath segments
-	if(!blob.breath || !blob.breath.breath) return
-	this._queue.push(blob)
-	if(this._queue.length !== 1) return
-	this._resolve_queue()
+	if(blob.breath && blob.breath.breath) {
+		this._queue.push(blob)
+		if(this._queue.length !== 1) return
+		this._resolve_queue()
+	}
 }
 
 export const tts_system = {
@@ -377,6 +365,5 @@ export const tts_system = {
 	_queue:[],
 	_resolve_queue,
 	_last_interrupt: 0,
-	_bargein: false,
 	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }

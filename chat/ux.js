@@ -231,17 +231,3 @@ export const ux_system = {
 	},
 	resolve
 }
-
-/*
-
-now i am getting non final barge in events to the ux
-
-and i am also blocking auto submit earlier
-
-	if i publish the right config events at the ux level then i don't need to do them here
-
-
-
-
-
-*/

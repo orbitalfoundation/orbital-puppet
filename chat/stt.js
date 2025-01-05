@@ -266,7 +266,6 @@ async function start() {
 			interrupt: performance.now(),
 			confidence:1,
 			final:false,
-			bargein:true,
 			spoken:true,
 			rcounter, bcounter,
 		}
@@ -281,12 +280,14 @@ async function start() {
 		// merge overtop defaults
 		human = Object.assign(defaults,human)
 
-		// if autosubmit is off then block 'final' events
-		// we have to allow non-final or barge in events to percolate through because we need non-final sentences for ux
+		// if bargein enabled then all human voice will interrupt / force stop all downstream effects always
+		if(this.bargein) human.bargein = true
+
+		// if autosubmit is off then mark as not 'final' event - although incomplete events are allwed thru
 		if(!this.autosubmit) human.final = false
 
-		// publish - testing out an idea of formal outputs rather than directly to sys()
-		context.human_out({ bargein: true, human },sys)
+		// publish - testing out an idea of formal outputs interfaces on components rather than directly to sys()
+		context.human_out({ human },sys)
 
 	}
 
