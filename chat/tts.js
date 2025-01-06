@@ -301,12 +301,13 @@ async function _resolve_queue() {
 
 		const time1 = performance.now()
 
-		// tts
+		// tts - can take a while
 		const text = fixDollars(blob.breath.breath).replace(/[*<>#%-]/g, "")
 		const results = await chew(text)
 
-		// interrupted?
+		// interrupted? is current work obsolete? check after the delay abouve
 		if(this._last_interrupt > interrupt) {
+			console.log("tts flushing 0",this._last_interrupt,interrupt)
 			this._queue = []
 			return
 		}
@@ -321,18 +322,17 @@ async function _resolve_queue() {
 
 		// diarization
 		const whisper = await speechDiarization(results.data.slice(0))
-
 		const time3 = performance.now()
 		//console.log(uuid,'it took',time3-time1,'milliseconds to say',text,'(',time1,time2,time3,')')
 
 		// interrupted?
 		if(this._last_interrupt > interrupt) {
+			console.log("tts flushing!",this._last_interrupt,interrupt)
 			this._queue = []
 			return
 		}
 
 		const final = blob.breath.final ? true : false
-		//console.log(uuid,"tts got valid results",blob,results)
 		sys({audio:{data:results.data,whisper,interrupt,final}})
 		this._queue.shift()
 	}
@@ -345,17 +345,18 @@ async function _resolve_queue() {
 
 function resolve(blob,sys) {
 
-	// bargein sets the current age limit of valid data
+	// bargein sets the current age limit of valid data; using last valid barge in as a floor
 	if(blob.human && blob.human.bargein) {
-		this._last_interrupt = performance.now()
+		this._last_interrupt = blob.human.interrupt
 		this._queue = []
 	}
 
 	// queue breath segments
 	if(blob.breath && blob.breath.breath) {
 		this._queue.push(blob)
-		if(this._queue.length !== 1) return
-		this._resolve_queue()
+		if(this._queue.length === 1) {
+			this._resolve_queue()
+		}
 	}
 }
 

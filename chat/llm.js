@@ -71,29 +71,29 @@ async function llm_resolve(agent,blob) {
 		return
 	}
 
-	// discard work older than this
-	agent._last_interrupt = performance.now()
+	// discard work older than this - caller MUST set this
+	agent._last_interrupt = blob.human.interrupt
 
-	// always stop local llm if new work comes in
+	// always stop local llm
 	if(agent.thinking && agent.engine && agent.engine.interruptGenerate) {
 		agent.engine.interruptGenerate()
 		agent.thinking = false
 	}
 
-	// if utterance is incomplete (such as a barge in) then done - caller MUST set final also
+	// if utterance is incomplete (such as a barge in) then done - caller MUST set final also to do work
 	if(!blob.human.final) return
 
-	// get text if any
+	// get text if any - caller should supply text to work on
 	const text = blob.human.text
 	if(!text || !text.length) return
 
 	const llm = agent.llm
 
 	// set llm pre-prompt configuration - @note - a hack - @todo may remove
-	if(blob.human.systemContent) {
+	if(blob.human.systemContent && blob.human.systemContent.length) {
 		llm.messages[0].content = blob.human.systemContent
 	}
-	if(agent.llm_prompt) {
+	if(agent.llm_prompt && agent.llm_prompt.length) {
 		llm.messages[0].content = agent.llm_prompt
 	}
 
@@ -103,6 +103,8 @@ async function llm_resolve(agent,blob) {
 	// this is the highest counter that the callbacks will know about
 	const rcounter = blob.human.rcounter || 1
 	let bcounter = blob.human.bcounter || 1
+
+	// this is the time that the current round of reasoning is starting at - not the same as ._last_interrupt
 	const interrupt = performance.now()
 
 	// use a remote endpoint?

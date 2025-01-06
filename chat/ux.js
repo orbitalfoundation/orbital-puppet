@@ -218,7 +218,7 @@ function resolve(blob,sys) {
 	if(human.final) {
 		setStatus('Thinking','thinking')
 	} else {
-		setStatus('Barge-in','thinking')		
+		setStatus('Barge-in','thinking')
 	}
 }
 

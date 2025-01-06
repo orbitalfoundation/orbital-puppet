@@ -257,7 +257,7 @@ async function start() {
 	// publish a message to pub sub observers
 	//
 	const publish = (human={}) => {
-
+	
 		// @todo actually disable microphone, for now i just ingore all events instead
 		if(!this.microphone) return
 
@@ -416,7 +416,7 @@ export const stt_system = {
 	// @todo an easier way to do this would be to just mark the component itself as canonical or schema true
 	schema: { stt: {}, },
 
-	// watch public event streams - @todo could use a filter
+	// watch public event streams - @todo could use a filter at sys level to catch configuration without conditional
 	resolve: function(blob,sys) {
 		if(!blob || blob.tick || blob.time) return
 		if(blob.configuration) {
