@@ -71,12 +71,16 @@ async function llm_resolve(target,blob) {
 		return
 	}
 
+	// always declared
 	const llm = target.llm
 
-	// discard work older than this - caller MUST set this
+	// may optionally be set
+	const tts = target.tts
+
+	// discard work older than this new work - caller MUST set this
 	llm._last_interrupt = blob.human.interrupt
 
-	// always stop local llm
+	// always stop local llm if local llm is active whenever any new work arrives
 	if(llm.thinking && llm.engine && llm.engine.interruptGenerate) {
 		llm.engine.interruptGenerate()
 		llm.thinking = false
@@ -89,7 +93,7 @@ async function llm_resolve(target,blob) {
 	const text = blob.human.text
 	if(!text || !text.length) return
 
-	// stuff new human utterance onto the llm reasoning context
+	// stuff new human utterance onto the llm reasoning context - this is session persistent
 	llm.messages.push( { role: "user", content:text } )
 
 	// this is the highest counter that the callbacks will know about
@@ -97,7 +101,7 @@ async function llm_resolve(target,blob) {
 	let bcounter = blob.human.bcounter || 1
 
 	// this is the time that the current round of reasoning is starting at - not the same as ._last_interrupt
-	const interrupt = performance.now()
+	const interrupt = llm._last_interrupt
 
 	// use a remote endpoint?
 	if(!llm.llm_local) {
@@ -149,14 +153,14 @@ async function llm_resolve(target,blob) {
 					if(sentence) {
 						const fragments = sentence.split(/[.!?]|,/);
 						fragments.forEach(breath => {
-							sys({breath:{breath,ready:true,final:true,rcounter,bcounter,interrupt}})
+							sys({breath:{breath,tts,ready:true,final:true,rcounter,bcounter,interrupt}})
 						})
 					}
 				})
 			})
 
 		} catch(err) {
-			sys({breath:{breath:"error talking to remote url",ready:true,final:true,rcounter,bcounter,interrupt}})
+			//sys({breath:{breath:"error talking to remote url",tts,ready:true,final:true,rcounter,bcounter,interrupt}})
 			console.error("puppet: reasoning catch error",err)
 		}
 
@@ -181,7 +185,7 @@ async function llm_resolve(target,blob) {
 		if(!fragment || !fragment.length || finished) {
 			if(breath.length) {
 				bcounter++
-				sys({breath:{breath,ready,final:true,rcounter,bcounter,interrupt}})
+				sys({breath:{breath,tts,ready,final:true,rcounter,bcounter,interrupt}})
 				breath = ''
 			}
 			return
@@ -193,7 +197,7 @@ async function llm_resolve(target,blob) {
 			const i = match[0].length
 			breath += fragment.slice(0,i)
 			bcounter++
-			sys({breath:{breath,ready,final:false,rcounter,bcounter,interrupt}})
+			sys({breath:{breath,tts,ready,final:false,rcounter,bcounter,interrupt}})
 			breath = fragment.slice(i)
 		}
 	}
@@ -215,7 +219,7 @@ async function llm_resolve(target,blob) {
 		llm.messages.push( { role: "assistant", content:paragraph } )
 
 		if(llm._last_interrupt > interrupt) return // work is out of date
-		sys({breath:{paragraph,breath:'',ready,final:true,rcounter,bcounter,interrupt}})
+		sys({breath:{paragraph,breath:'',tts,ready,final:true,rcounter,bcounter,interrupt}})
 	}
 
 	// begin streaming support of llm text responses as breath chunks

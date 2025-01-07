@@ -1,10 +1,8 @@
 
 const uuid = 'tts-system'
 
-const voiceId = 'en_US-hfc_female-medium'
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-// tts
+// tts local wasm worker using vits - slower on older machines
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //
@@ -15,7 +13,9 @@ const voiceId = 'en_US-hfc_female-medium'
 const ttsString = `
 import * as tts from 'https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm'
 self.addEventListener('message', (e) => {
-	tts.predict({text:e.data,voiceId: 'en_US-hfc_female-medium'}).then(audio => {
+	const text = e.data.text || 'please supply some text'
+	const voiceId = e.data.voice || 'en_US-hfc_female-medium'
+	tts.predict({text,voiceId}).then(audio => {
 		new Promise((resolve, reject) => {
 			const reader = new FileReader()
 			reader.onload = () => resolve(reader.result)
@@ -67,18 +67,70 @@ function fixDollars(sentence) {
 	});
 }
 
-function chew(text) {
-	if(!text || !text.length) return null
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// tss remote - using openai
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+async function perform_tts_remote(args) {
+
+	const props = {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${args.bearer||''}`
+		},
+		body: JSON.stringify({
+			model: args.model || "tts-1",
+			voice: args.voice || "shimmer",
+			input: args.text,
+		}),
+	}
+
+	const url = args.url || 'https://api.openai.com/v1/audio/speech'
+
+	try {
+		const response = await fetch(url,props)
+		if(!response.ok) {
+			console.error("puppet:tts error",response)
+			return null
+		}
+		const buffer = await response.arrayBuffer()
+		return { data: buffer }
+	} catch(err) {
+	  console.error('Error:', err)
+	}
+	return null
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// perform tts
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+function perform_tts(breath) {
+
+	// patch up dollar sounds
+	const text = fixDollars(breath.breath).replace(/[*<>#%-]/g, "")
+	if(!text || !text.length) return
+	const args = { ...breath.tts, text }
+
+	// allow remote tts for performance
+	if(breath.tts && breath.tts.remote && breath.tts.url) {
+		return perform_tts_remote(args)
+	}
+
+	// do local tts
 	return new Promise((happy,sad)=>{
 		worker_tts.onmessage = async (event) => { happy(event) }
-		worker_tts.postMessage(text)
+		worker_tts.postMessage(args)
 	})
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-// speech diarization
+//
+// speech diarization local worker - slow on older machines
 //
 // a local stt worker to generate timing data for speech audio
+//
 // @todo one way to avoid this code would be if the speech generator generated timing data
 // @todo another way to avoid this code is to spread phoneme timing over the duration of the audio
 //
@@ -244,7 +296,7 @@ function speechWorker(audio) {
 	})
 }
 
-async function speechDiarization(bufferArray) {
+async function perform_stt_local(arrayBuffer) {
 
 	const whisper = {
 		words: [],
@@ -259,7 +311,7 @@ async function speechDiarization(bufferArray) {
 	//
 
 	const audioContext = new window.AudioContext({sampleRate: 16000 })
-	let audioData = await audioContext.decodeAudioData(bufferArray)
+	let audioData = await audioContext.decodeAudioData(arrayBuffer)
 	let audio
 	if (audioData.numberOfChannels === 2) {
 		const SCALING_FACTOR = Math.sqrt(2)
@@ -289,6 +341,181 @@ async function speechDiarization(bufferArray) {
 	return whisper
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// stt remote
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const isServer = typeof window === 'undefined'
+
+const buffer_to_bytes = (buffer) => {
+	if(isServer) {
+		const binary = Buffer.from(buffer).toString('binary');
+		return Buffer.from(binary, 'binary').toString('base64');
+	} else {
+		const uint8buf = new Uint8Array(buffer)
+		const arrayu8 = Array.from(uint8buf)
+		let binaryu8 = ''; arrayu8.forEach(elem => { binaryu8+= String.fromCharCode(elem) })
+		//const binaryu8 = String.fromCharCode.apply(null,arrayu8) // this is blowing the stack
+		// don't bother packaging this up as a playable file but rather let the client do that if desired
+		// blob.audio = "data:audio/mp3;base64," + window.btoa( binary )
+		return window.btoa(binaryu8)
+	}
+}
+
+async function perform_stt_remote(config,arrayBuffer) {
+
+	try {
+
+		// for some reason this fails on some nodejs installs due to some kind of weird pipe error
+		// const blob = new Blob([bufferArray])
+		// const form = new FormData()
+		// form.append('file', blob, 'audio.mp3')
+		// form.append("model", "whisper-1")
+		// form.append("language", "en")
+		// form.append("response_format", "verbose_json" )
+		// form.append("timestamp_granularities[]", "word" )
+		// form.append("timestamp_granularities[]", "segment" )
+
+		// the file itself from a raw ArrayBuffer
+		const file = new Uint8Array(arrayBuffer)
+
+		const GROQ = false // @todo look at config
+
+		const args = {
+			model: GROQ ? "whisper-large-v3" : "whisper-1",
+			language: "en",
+			response_format: "verbose_json",
+			"timestamp_granularities[]": "word",
+			file,
+		}
+
+		// build list of parts as an array
+		const boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW';
+		let parts = []
+		for(const [k,v] of Object.entries(args)) {
+			parts.push(`--${boundary}\r\n`)
+			if(k === 'file') {
+				parts.push(
+					'Content-Disposition: form-data; name="file"; filename="file.mp3"\r\n',
+					'Content-Type: application/octet-stream\r\n\r\n',
+					v,
+					'\r\n'
+				)
+			} else {
+				parts.push(
+					`Content-Disposition: form-data; name="${k}";\r\n\r\n`,
+					v,
+					'\r\n'
+				)
+			}
+		}
+		parts.push(`--${boundary}--\r\n`)
+
+		// estimate length of everything
+		let totalLength = 0
+		parts.forEach(part=>{ totalLength += part.length })
+
+		let body = ""
+
+		if(isServer) {
+			// browser clients don't define 'Buffer' but it is typically stable for servers
+			body = Buffer.allocUnsafe(totalLength);
+			let offset = 0
+			parts.forEach(part => {
+				if (typeof part === 'string') {
+					offset += body.write(part, offset, 'utf8');
+				} else if (part === file || Buffer.isBuffer(part)) {
+					file.forEach(c=>{ body.writeUInt8(c,offset); offset++ })
+					//part.copy(body, offset);
+					//offset += part.length;
+				}
+			})
+		} else {
+			// this approach can fail on some servers but works on clients
+			body = new Blob(parts, { type: 'multipart/form-data' });
+		}
+
+		let url = GROQ ? "https://api.groq.com/openai/v1/audio/transcriptions" : "https://api.openai.com/v1/audio/transcriptions"
+
+		const props = {
+			method: 'POST',
+			headers: {
+				'Content-Type': `multipart/form-data; boundary=${boundary}`,
+				'Content-Length': totalLength,
+				Authorization: `Bearer ${config.bearer||''}`
+			},
+			body
+		}
+
+		///////////////////////////////////////////////////////////////////////////////////////////////////////
+		// call the server
+		///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		const response = await fetch(url, props )
+
+		if(!response.ok) {
+			console.error("puppet stt - whisper bad response",response)
+			return null
+		}
+
+		//////////////////////////////////////////////////////////////////////////////////////////////////////
+		// pull out the word timings
+		////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		const json = await response.json()
+
+		if(!json.words || !json.words.length) {
+			console.error("puppet stt - whisper no data")
+			return null
+		}
+
+		const whisperAudio = {
+			words: [],
+			wtimes: [],
+			wdurations: [],
+			markers: [],
+			mtimes: []
+		}
+
+		// Add words to the whisperAudio object
+		// @todo the -150 is a hack... it's setting timing for later in pipeline and probably should not be set here
+
+		json.words.forEach( x => {
+			// @ts-ignore
+			whisperAudio.words.push( x.word );
+			// @ts-ignore
+			whisperAudio.wtimes.push( 1000 * x.start - 150 );
+			// @ts-ignore
+			whisperAudio.wdurations.push( 1000 * (x.end - x.start) );
+		})
+
+		return whisperAudio
+
+	} catch(err) {
+		console.error("puppet stt - whisper error",err)
+	}
+
+	return null
+}
+
+const perform_stt = async (config,arrayBuffer) => {
+
+	const buffer = arrayBuffer.slice(0)
+
+	if(!buffer) {
+		return
+	}
+
+	if(config && config.whisper_remote) {
+		const whisper = await perform_stt_remote(config,buffer)
+		return whisper
+	} else {
+		const whisper = await perform_stt_local(buffer)
+		return whisper
+	}
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // resolve support
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -301,9 +528,8 @@ async function _resolve_queue() {
 
 		const time1 = performance.now()
 
-		// tts - can take a while
-		const text = fixDollars(blob.breath.breath).replace(/[*<>#%-]/g, "")
-		const results = await chew(text)
+		// process tts chunk
+		const results = await perform_tts(blob.breath)
 
 		// interrupted? is current work obsolete? check after the delay abouve
 		if(this._last_interrupt > interrupt) {
@@ -321,9 +547,9 @@ async function _resolve_queue() {
 		const time2 = performance.now()
 
 		// diarization
-		const whisper = await speechDiarization(results.data.slice(0))
+		const whisper = await perform_stt(blob.breath.tts,results.data)
 		const time3 = performance.now()
-		//console.log(uuid,'it took',time3-time1,'milliseconds to say',text,'(',time1,time2,time3,')')
+		//console.log(uuid,'it took',time3-time1,'milliseconds to say',blob,'(',time1,time2,time3,')')
 
 		// interrupted?
 		if(this._last_interrupt > interrupt) {
@@ -352,7 +578,7 @@ function resolve(blob,sys) {
 	}
 
 	// queue breath segments
-	if(blob.breath && blob.breath.breath) {
+	if(blob.breath && blob.breath.breath && blob.breath.breath.length) {
 		this._queue.push(blob)
 		if(this._queue.length === 1) {
 			this._resolve_queue()
