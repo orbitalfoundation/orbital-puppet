@@ -64,20 +64,22 @@ async function load() {
 	}
 }
 
-async function llm_resolve(agent,blob) {
+async function llm_resolve(target,blob) {
 
 	// return if nothing noteworthy to do - caller MUST set bargein for llm to do work
 	if(!blob.human.bargein) {
 		return
 	}
 
+	const llm = target.llm
+
 	// discard work older than this - caller MUST set this
-	agent._last_interrupt = blob.human.interrupt
+	llm._last_interrupt = blob.human.interrupt
 
 	// always stop local llm
-	if(agent.thinking && agent.engine && agent.engine.interruptGenerate) {
-		agent.engine.interruptGenerate()
-		agent.thinking = false
+	if(llm.thinking && llm.engine && llm.engine.interruptGenerate) {
+		llm.engine.interruptGenerate()
+		llm.thinking = false
 	}
 
 	// if utterance is incomplete (such as a barge in) then done - caller MUST set final also to do work
@@ -86,16 +88,6 @@ async function llm_resolve(agent,blob) {
 	// get text if any - caller should supply text to work on
 	const text = blob.human.text
 	if(!text || !text.length) return
-
-	const llm = agent.llm
-
-	// set llm pre-prompt configuration - @note - a hack - @todo may remove
-	if(blob.human.systemContent && blob.human.systemContent.length) {
-		llm.messages[0].content = blob.human.systemContent
-	}
-	if(agent.llm_prompt && agent.llm_prompt.length) {
-		llm.messages[0].content = agent.llm_prompt
-	}
 
 	// stuff new human utterance onto the llm reasoning context
 	llm.messages.push( { role: "user", content:text } )
@@ -108,14 +100,14 @@ async function llm_resolve(agent,blob) {
 	const interrupt = performance.now()
 
 	// use a remote endpoint?
-	if(!agent.llm_local) {
+	if(!llm.llm_local) {
 
 		// configure body - with some flexibility hacked in for other servers aside from openai
 		let body = {
-			model: agent.llm_model || 'gpt-3.5-turbo',
+			model: llm.llm_model || 'gpt-3.5-turbo',
 			messages:llm.messages
 		}
-		if(agent.llm_url && agent.llm_url.includes('openai') == false) {
+		if(llm.llm_url && llm.llm_url.includes('openai') == false) {
 			body.question = text
 		}
 		body = JSON.stringify(body)
@@ -124,7 +116,7 @@ async function llm_resolve(agent,blob) {
 		const props = {
 			method: 'POST',
 			headers: {
-				'Authorization': `Bearer ${agent.llm_auth||""}`,
+				'Authorization': `Bearer ${llm.llm_auth||""}`,
 				'Content-Type': 'application/json',
 			},
 			body
@@ -133,7 +125,7 @@ async function llm_resolve(agent,blob) {
 		// fetch llm response - this must not block so do not await
 		try {
 
-			fetch(agent.llm_url,props).then(response => {
+			fetch(llm.llm_url,props).then(response => {
 
 				if(!response.ok) {
 					console.error("llm reasoning error",response)
@@ -141,7 +133,7 @@ async function llm_resolve(agent,blob) {
 				}
 
 				// throw away old traffic
-				if(interrupt < agent._last_interrupt) {
+				if(interrupt < llm._last_interrupt) {
 					return
 				}
 
@@ -181,7 +173,7 @@ async function llm_resolve(agent,blob) {
 	}
 
 	// start reasoning
-	agent.thinking = true
+	llm.thinking = true
 
 	// helper: publish each breath fragment as it becomes large enough
 	let breath = ''
@@ -214,7 +206,7 @@ async function llm_resolve(agent,blob) {
 			if(!chunk.choices || !chunk.choices.length || !chunk.choices[0].delta) continue
 			const content = chunk.choices[0].delta.content
 			const finished = chunk.choices[0].finish_reason
-			if(agent._last_interrupt > interrupt) return // work is out of date
+			if(llm._last_interrupt > interrupt) return // work is out of date
 			breath_helper(content,finished === 'stop')
 		}
 
@@ -222,7 +214,7 @@ async function llm_resolve(agent,blob) {
 		const paragraph = await engine.getMessage()
 		llm.messages.push( { role: "assistant", content:paragraph } )
 
-		if(agent._last_interrupt > interrupt) return // work is out of date
+		if(llm._last_interrupt > interrupt) return // work is out of date
 		sys({breath:{paragraph,breath:'',ready,final:true,rcounter,bcounter,interrupt}})
 	}
 
@@ -250,7 +242,7 @@ async function resolve(blob,sys) {
 	// ignore
 	if(blob.tick || blob.time) return
 
-	// store llm if any
+	// track entire associated blob parent entity of llm
 	if(blob.llm && blob.uuid) {
 		this._llms[blob.uuid] = blob
 	}
@@ -259,24 +251,12 @@ async function resolve(blob,sys) {
 	if(blob.human) {
 		let llms = Object.values(this._llms)
 		if(!llms.length) return
-		let agent = this._llms[blob.human.target||'default'] || llms[0]
-		if(agent) {
-			await llm_resolve(agent,blob)
+		let target = this._llms[blob.human.target||'default'] || llms[0]
+		if(target) {
+			await llm_resolve(target,blob)
 		}
 	}
 
-	// configuration hack for demo ux - @todo apply to correct llm only later
-	if(blob.configuration) {
-		let llms = Object.values(this._llms)
-		if(!llms.length) return
-		let agent = llms[0]
-		if(blob.configuration.hasOwnProperty('local')) agent.llm_local = blob.configuration.local
-		if(blob.configuration.hasOwnProperty('url')) agent.llm_url = blob.configuration.url
-		if(blob.configuration.hasOwnProperty('auth')) agent.llm_auth = blob.configuration.auth
-		if(blob.configuration.hasOwnProperty('model')) agent.llm_model = blob.configuration.model
-		if(blob.configuration.hasOwnProperty('prompt')) agent.llm_prompt = blob.configuration.prompt
-		if(agent.llm_local) load()
-	}
 }
 
 export const llm_system = {

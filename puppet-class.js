@@ -169,7 +169,6 @@ export class PuppetClass {
 
 }
 
-
 //
 // @todo stuff this somewhere better
 // probably should be a part of volume - but has to callback to here
