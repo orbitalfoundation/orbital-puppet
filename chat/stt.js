@@ -1,6 +1,20 @@
 
 const uuid = 'stt_system'
 
+//
+// For now the puppet chat system relies on these external services to be loaded
+//
+
+function loadScript(src) {
+	var script = document.createElement('script');
+	script.src = src;
+	script.type = 'text/javascript';
+	document.head.appendChild(script);
+}
+  
+loadScript("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js")
+loadScript("https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.19/dist/bundle.min.js")
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // xenova stt whisper - https://huggingface.co/spaces/Xenova/whisper-web
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -237,6 +251,7 @@ const worker = new Worker(URL.createObjectURL(new Blob([xenovaWorker],{type:'tex
 
 const positiveSpeechThreshold = 0.8
 
+// @todo the code clarity here is poor
 //system_stt: false,
 //microphone: true,
 //bargein: false,
@@ -419,23 +434,23 @@ export const stt_system = {
 	// watch public event streams - @todo could use a filter at sys level to catch configuration without conditional
 	resolve: function(blob,sys) {
 		if(!blob || blob.tick || blob.time) return
-		if(blob.configuration) {
-			if(blob.configuration.hasOwnProperty('system_stt')) {
+		if(blob.stt) {
+			if(blob.stt.hasOwnProperty('system_stt')) {
 				// @todo tbd. system stt sucks so badly it is not used - but it should be enabled at least at some point
-				this.stt.system_stt = blob.configuration.system_stt
+				this.stt.system_stt = blob.stt.system_stt
 			}
-			if(blob.configuration.hasOwnProperty('microphone')) {
+			if(blob.stt.hasOwnProperty('microphone')) {
 				// @todo turn microphone off or on - @todo always on for now - i just block the return data
-				this.stt.microphone = blob.configuration.microphone
+				this.stt.microphone = blob.stt.microphone
 			}
-			if(blob.configuration.hasOwnProperty('bargein')) {
+			if(blob.stt.hasOwnProperty('bargein')) {
 				// @todo right now we have to publish non-final or 'barge in' because ux needs to see spoken fragments
 				// so this doesn't actually do anything here right now
-				this.stt.bargein = blob.configuration.bargein
+				this.stt.bargein = blob.stt.bargein
 			}
-			if(blob.configuration.hasOwnProperty('autosubmit')) {
+			if(blob.stt.hasOwnProperty('autosubmit')) {
 				// for now we just block final events; so they should show up in ux as incomplete or not final events
-				this.stt.autosubmit = blob.configuration.autosubmit
+				this.stt.autosubmit = blob.stt.autosubmit
 			}
 		}
 	},
