@@ -1,6 +1,6 @@
 {
   "name": "orbital-puppet",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "utilities to animate a 3d embodied puppet",
   "scripts": {
   },

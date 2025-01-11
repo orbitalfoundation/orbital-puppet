@@ -5,15 +5,7 @@ const uuid = 'stt_system'
 // For now the puppet chat system relies on these external services to be loaded
 //
 
-function loadScript(src) {
-	var script = document.createElement('script');
-	script.src = src;
-	script.type = 'text/javascript';
-	document.head.appendChild(script);
-}
-  
-loadScript("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js")
-loadScript("https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.19/dist/bundle.min.js")
+import './shared.js'
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // xenova stt whisper - https://huggingface.co/spaces/Xenova/whisper-web
@@ -365,28 +357,36 @@ async function start() {
 		publish({text,final,comment})
 	}
 
+	worker.addEventListener("message", stt_helper )
+
 	//
-	// start up the vad - which will detect barge-in events and final audio and generally driven stt processing
+	// start up the vad - this drives the custom stt system
+	// detect barge-in events and final audio and generally driven stt processing
+	// due to the deferred load of the script above a retry strategy is used for loading for now @todo improve
 	//
 
-	try {
-		const myvad = await vad.MicVAD.new({
-			positiveSpeechThreshold,
-			minSpeechFrames: 5,
-			preSpeechPadFrames: 10,
-			onFrameProcessed: (probs) => { vad_helper(probs,null) },
-			onSpeechEnd: (audio) => { vad_helper(null,audio) }
-		})
-		myvad.start()
-	} catch(err) {
-		console.error(uuid,err)
+	const start_vad = async () => {
+		if(typeof vad === 'undefined') {
+			console.log("stt: voice activity detector is not loaded yet...")
+			setTimeout( start_vad, 1000 )
+			return
+		}
+		try {
+			console.log("stt: starting voice activity detection")
+			const myvad = await vad.MicVAD.new({
+				positiveSpeechThreshold,
+				minSpeechFrames: 5,
+				preSpeechPadFrames: 10,
+				onFrameProcessed: (probs) => { vad_helper(probs,null) },
+				onSpeechEnd: (audio) => { vad_helper(null,audio) }
+			})
+			myvad.start()
+		} catch(err) {
+			console.error(uuid,err)
+		}
 	}
 
-	//
-	// resolve stt events
-	//
-
-	worker.addEventListener("message", stt_helper )
+	start_vad()
 
 }
 
@@ -458,6 +458,4 @@ export const stt_system = {
 	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }
 
-// start up immediately - no point in waiting - as a test this start() method is attached to the stt component
 stt_system.stt.start()
-
