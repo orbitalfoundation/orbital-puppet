@@ -1,11 +1,7 @@
 
 const uuid = 'stt_system'
 
-//
-// For now the puppet chat system relies on these external services to be loaded
-//
-
-import './shared.js'
+//import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/+esm";
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // xenova stt whisper - https://huggingface.co/spaces/Xenova/whisper-web
@@ -360,33 +356,46 @@ async function start() {
 	worker.addEventListener("message", stt_helper )
 
 	//
+	// load ricky's vad system like so for now
+	// @todo newer revs of this engine do not work for some reason
+	//
+
+    await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js";
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+
+    await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.19/dist/bundle.min.js";
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+
+	//
 	// start up the vad - this drives the custom stt system
 	// detect barge-in events and final audio and generally driven stt processing
 	// due to the deferred load of the script above a retry strategy is used for loading for now @todo improve
 	//
 
-	const start_vad = async () => {
-		if(typeof vad === 'undefined') {
-			console.log("stt: voice activity detector is not loaded yet...")
-			setTimeout( start_vad, 1000 )
-			return
-		}
-		try {
-			console.log("stt: starting voice activity detection")
-			const myvad = await vad.MicVAD.new({
-				positiveSpeechThreshold,
-				minSpeechFrames: 5,
-				preSpeechPadFrames: 10,
-				onFrameProcessed: (probs) => { vad_helper(probs,null) },
-				onSpeechEnd: (audio) => { vad_helper(null,audio) }
-			})
-			myvad.start()
-		} catch(err) {
-			console.error(uuid,err)
-		}
+	try {
+		console.log("stt: starting voice activity detection")
+		const myvad = await globalThis.vad.MicVAD.new({
+			positiveSpeechThreshold,
+			minSpeechFrames: 5,
+			preSpeechPadFrames: 10,
+			model: "v5",
+			onFrameProcessed: (probs) => { vad_helper(probs,null) },
+			onSpeechEnd: (audio) => { vad_helper(null,audio) }
+		})
+		myvad.start()
+	} catch(err) {
+		console.error(uuid,err)
 	}
-
-	start_vad()
 
 }
 
