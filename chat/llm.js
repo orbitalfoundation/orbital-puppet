@@ -89,18 +89,12 @@ async function llm_resolve(target,blob) {
 	// if utterance is incomplete (such as a barge in) then done - caller MUST set final also to do work
 	if(!blob.human.final) return
 
-console.log("11")
-
 	// get text if any - caller should supply text to work on
 	const text = blob.human.text
 	if(!text || !text.length) return
 
-console.log("222")
-
 	// stuff new human utterance onto the llm reasoning context - this is session persistent
 	llm.messages.push( { role: "user", content:text } )
-
-console.log("33")
 
 	// this is the highest counter that the callbacks will know about
 	const rcounter = blob.human.rcounter || 1
@@ -109,13 +103,8 @@ console.log("33")
 	// this is the time that the current round of reasoning is starting at - not the same as ._last_interrupt
 	const interrupt = llm._last_interrupt
 
-console.log("44")
-
 	// use a remote endpoint?
 	if(!llm.llm_local) {
-
-
-console.log("55")
 
 		// configure body - with some flexibility hacked in for other servers aside from openai
 		let body = {
