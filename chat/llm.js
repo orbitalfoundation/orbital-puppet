@@ -66,8 +66,6 @@ async function load() {
 
 async function llm_resolve(target,blob) {
 
-console.log("************************")
-
 	// return if nothing noteworthy to do - caller MUST set bargein for llm to do work
 	if(!blob.human.bargein) {
 		return
@@ -107,8 +105,6 @@ console.log("************************")
 
 	// use a remote endpoint?
 	if(!llm.llm_local) {
-
-alert(1)
 
 		// configure body - with some flexibility hacked in for other servers aside from openai
 		let body = {
@@ -244,8 +240,6 @@ alert(1)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 async function resolve(blob,sys) {
-
-console.log("**************** llm")
 
 	// right now i am tracking the llm entities and then sending traffic onwards to handlers for them
 	// @todo perhaps this can be generalized or improved
