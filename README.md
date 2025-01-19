@@ -31,7 +31,8 @@ The design consists of several independent pieces wired together:
 		- publishes stt events
 		- publishes barge-in events (using a voice activity detector)
 
-2) UX - a fragment of html that produces a text chat input window
+2) UX - [deprecated - see example code in index.js that does this instead]
+	  - a fragment of html that produces a text chat input window
 		- listens to stt events and may disallow interruptions
 		- listens to barge-in events and may disallow them if settings are disallowed
 		- listens to 'status' events and paints to the status bar
