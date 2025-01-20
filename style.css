@@ -1,0 +1,192 @@
+
+:root {
+    --color-white: #F6F6F6;
+    --color-yellow: #FCFC92;
+    --color-back: #624D44;
+    --color-note: #a02927;
+    --color-gray-1: #8F94AA;
+    --color-gray-2: #454B59;
+    --color-black: #1A1A1A;
+    --background-color: var(--color-white);
+    --text-color: var(--color-white);
+    --max-width: 1024px;
+    --display-height: 2048px;
+}
+
+html, body {
+    max-width: 100%;
+    xxxoverflow-x: hidden;
+}
+
+body {
+    font-family: 'Montserrat', 'Open Sans', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background-color: var(--color-black);
+    }
+}
+
+/***********************************************************/
+
+.PuppetContainer {
+
+    max-width: 1000px;
+    margin: 0 auto;
+
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.PuppetMain {
+    display: flex;
+    flex-direction: row;
+    flex:1;
+}
+
+.PuppetMainLeft, .PuppetMainRight {
+    flex: 1;
+    display:flex;
+    flex-direction:column;
+}
+
+.PuppetMainRight {
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    margin-left: 10px;
+}
+
+.PuppetBottom {
+    height:100px;
+    flex:0.1;
+}
+
+@media (max-width: 800px) {
+    .PuppetMain {
+        flex-direction: column;
+    }
+    .PuppetMainRight {
+        margin-left: 0px;
+    }
+}
+
+@media only screen and (hover: none) and (pointer: coarse){
+    .PuppetContainer {
+        height: 80vh;
+    }
+}
+
+/***********************************************************/
+
+#PuppetChatHistory {
+
+    width:100%;
+    flex: 1;
+    background-color: var(--color-back);
+
+    border: none;
+    border-radius: 5px;
+    margin-bottom: 10px;
+
+    overflow-y: scroll;
+}
+
+.PuppetChatUser {
+    margin: 8px;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: var(--color-back);
+    max-width: 90%;
+    width: fit-content;
+    margin-left: auto;
+    text-align: right;
+    filter: brightness(1.2);
+}
+
+.PuppetChatAgent {
+    margin: 8px;
+    padding: 0 8px 0 8px;
+    border-radius: 5px;
+    background-color: var(--color-back);
+}
+
+.PuppetChatInput {
+    display: flex;
+    padding: 10px;
+    background-color: var(--color-back);
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+#PuppetChatInputTextArea {
+    flex: 1;
+    padding: 8px;
+    border-radius: 5px;
+    resize: none;
+    border-style: none;
+    border-color: transparent;
+    outline: none;
+    background-color: var(--color-back);
+    filter: brightness(1.2);
+    color: var(--color-white);
+
+    overflow: auto;
+}
+
+/***********************************************************/
+
+.PuppetMicrophonePanel {
+
+    width: 100%;
+    height: 40px;
+
+    background-color: var(--color-back);
+    border-radius: 5px;
+    margin-bottom: 10px;
+    padding: 0px;
+
+}
+
+/***********************************************************/
+
+.PuppetControl {
+    display: flex;
+    justify-content: space-between;
+    height: 50px;
+    padding-top: 10px;
+}
+
+.PuppetControlLeft, .PuppetControlRight {
+    display: flex;
+    gap: 10px;
+}
+
+.PuppetControl button {
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    background-color: var(--color-note);
+    color: var(--color-white);
+}
+
+.PuppetControl button.active {
+    background-color: var(--color-back);
+}
+
+.PuppetControl button:hover {
+    background-color: var(--color-gray-2);
+}

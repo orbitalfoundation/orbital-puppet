@@ -118,11 +118,11 @@ sys([
 		uuid: 'alexandria',
 		volume: {
 			geometry: 'file',
-			url: 'assets/avatars/rpm-mixamo-t-posed.glb',
+			url: 'https://models.readyplayer.me/664956c743dbd726eefeb99b.glb?morphTargets=ARKit,Oculus+Visemes,mouthOpen,mouthSmile,eyesClosed,eyesLookUp,eyesLookDown&textureSizeLimit=1024&textureFormat=png',
 			pose: {
 				position: [0,0,0]
 			},
-			animations: { default: "assets/animations/unarmed-idle.glb" },
+			animations: { default: `${import.meta.url}/../assets/animations/unarmed-idle.glb` },
 		},
 		puppet: {},
 
