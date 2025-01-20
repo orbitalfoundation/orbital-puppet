@@ -6,6 +6,7 @@
 	- puppet
 		- puppet gaze is supported and should be turned back on for a more powerful interaction
 		- puppet does support llm related physical animations; would be nice to turn this back on
+		- try a smaller mobile friendly llm so that this can run on a phone
 
 	- code improvements 
 		- puppet-class is overkill; it could just be a javascript object
