@@ -2,6 +2,8 @@
 
 A 'no strings attached' voice-to-voice conversational 3d puppet with rigged face visemes for the browser.
 
+See a demo at https://orbitalfoundation.github.io/orbital-puppet/
+
 Notes:
 
 Intended to be driven within an orbital-sys based system ( see https://github.com/orbitalfoundation ) but can probably be made to work standalone as well. You will need to load your own 3d model if you don't leverage the orbital tooling - see https://github.com/orbitalfoundation/orbital-volume for the model loader used here.
