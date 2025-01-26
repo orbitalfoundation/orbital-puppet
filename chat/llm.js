@@ -31,7 +31,7 @@ const handler = new webllm.WebWorkerMLCEngineHandler();
 self.onmessage = (msg) => { handler.onmessage(msg); };
 `
 
-async function load() {
+async function load(sys) {
 	if(loading) return
 	loading = true
 
@@ -54,7 +54,7 @@ async function load() {
 
 		if(USE_SERVICE_WORKER) {
 			navigator.serviceWorker.register("/sw.js",{type:'module'}).then( registration => {
-				console.log('llm - service worker message',registration)
+				console.log('llm: service worker message',registration)
 			})
 			webllm.CreateServiceWorkerMLCEngine(selectedModel,{initProgressCallback}).then(completed)
 		} else {
@@ -95,7 +95,7 @@ function llm_remote(sys,llm,tts,rcounter,bcounter,interrupt) {
 		fetch(llm.llm_url,props).then(response => {
 
 			if(!response.ok) {
-				console.error("llm reasoning error",response)
+				console.error("llm: reasoning error",response)
 				return
 			}
 
@@ -123,8 +123,7 @@ function llm_remote(sys,llm,tts,rcounter,bcounter,interrupt) {
 		})
 
 	} catch(err) {
-		//sys({breath:{breath:"error talking to remote url",tts,ready:true,final:true,rcounter,bcounter,interrupt}})
-		console.error("puppet: reasoning catch error",err)
+		console.error("llm: reasoning catch error - bad remote url?",err)
 	}
 
 	return
@@ -168,7 +167,7 @@ function llm_local(sys,llm,tts,rcounter,bcounter,interrupt) {
 			const content = chunk.choices[0].delta.content
 			const finished = chunk.choices[0].finish_reason
 			if(llm._last_interrupt > interrupt) {
-				console.log('llm skipping - work is old',interrupt,llm)
+				console.log('llm: skipping - work is old',interrupt,llm)
 				//return - actually let it exhaust the work since it seems to crash otherwise
 			} else {
 				breath_helper(content,finished === 'stop')
@@ -180,7 +179,7 @@ function llm_local(sys,llm,tts,rcounter,bcounter,interrupt) {
 		llm.messages.push( { role: "assistant", content:paragraph } )
 
 		if(llm._last_interrupt > interrupt) {
-			console.log('llm skipping - work is old',interrupt,llm)
+			console.log('llm: skipping - work is old',interrupt,llm)
 			//return - actually let it exhaust the work since it seems to crash otherwise
 		} else {
 			sys({breath:{paragraph,breath:'',tts,ready,final:true,rcounter,bcounter,interrupt}})
@@ -210,7 +209,7 @@ async function resolve(blob,sys) {
 	let candidates = Object.values(llm_entities)
 	const entity = candidates.length ? candidates[0] : {}
 	if(!entity) {
-		sys({breath:{breath:"Please configure me",ready,final:true,rcounter,bcounter,interrupt}})
+		console.error('llm: No llm found')
 		return
 	}	
 	const llm = entity.llm
@@ -223,7 +222,6 @@ async function resolve(blob,sys) {
 	// override settings?
 	if(blob.human.hasOwnProperty('llm_local')) {
 		llm.llm_local = blob.human.llm_local ? true : false
-		sys({breath:{breath:`Llm set ${llm.llm_local?'local':'remote'}`,ready,final:true,rcounter,bcounter}})
 	}
 
 	// ignore if no barge in
@@ -237,8 +235,7 @@ async function resolve(blob,sys) {
 
 	// load local llm? (throws away request for now)
 	if(llm.llm_local && !ready) {
-		load()
-		sys({breath:{breath:"Loading local llm",ready,final:true,rcounter,bcounter}})
+		load(sys)
 		return
 	}
 
