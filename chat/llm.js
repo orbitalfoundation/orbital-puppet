@@ -40,7 +40,6 @@ async function load() {
 		sys({status:{color:(ready?'ready':'loading'),text:`Loading local model ${selectedModel}`}})
 
 		const initProgressCallback = (status) => {
-			console.log(status.text)
 			sys({status:{color:(ready?'ready':'loading'),text:status.text}})
 		}
 
@@ -164,22 +163,29 @@ function llm_local(sys,llm,tts,rcounter,bcounter,interrupt) {
 
 		// iterate over async iterables ... @todo can we abort this if we wish?
 		for await (const chunk of asyncChunkGenerator) {
+
 			if(!chunk.choices || !chunk.choices.length || !chunk.choices[0].delta) continue
 			const content = chunk.choices[0].delta.content
 			const finished = chunk.choices[0].finish_reason
-			if(llm._last_interrupt > interrupt) return // work is out of date
-			breath_helper(content,finished === 'stop')
+			if(llm._last_interrupt > interrupt) {
+				console.log('llm skipping - work is old',interrupt,llm)
+				//return - actually let it exhaust the work since it seems to crash otherwise
+			} else {
+				breath_helper(content,finished === 'stop')
+			}
 		}
 
 		// stuff the final message onto the llm history
 		const paragraph = await engine.getMessage()
 		llm.messages.push( { role: "assistant", content:paragraph } )
 
-		if(llm._last_interrupt > interrupt) return // work is out of date
-		sys({breath:{paragraph,breath:'',tts,ready,final:true,rcounter,bcounter,interrupt}})
+		if(llm._last_interrupt > interrupt) {
+			console.log('llm skipping - work is old',interrupt,llm)
+			//return - actually let it exhaust the work since it seems to crash otherwise
+		} else {
+			sys({breath:{paragraph,breath:'',tts,ready,final:true,rcounter,bcounter,interrupt}})
+		}
 	}
-
-	console.log("llm: thinking about text 2")
 
 	// begin streaming support of llm text responses as breath chunks
 	engine.chat.completions.create(llm).then(helper)
@@ -223,20 +229,16 @@ async function resolve(blob,sys) {
 	// ignore if no barge in
 	if(!blob.human.bargein) return
 
-	// the interrupt time is the set when a valid barge in makes older work obsolete
-	const interrupt = llm._last_interrupt = blob.human.interrupt
-
-	// if this specific llm was doing local reasoning, always force stop local whenever new content arrives
+	// always stop ongoing local reasoning - cannot do this for remote
 	if(llm.thinking && engine && engine.interruptGenerate) {
-		console.log("llm: stopping")
 		engine.interruptGenerate()
 		llm.thinking = false
 	}
 
-	// for local reasoning requests, if not ready, start loading the brains
+	// load local llm? (throws away request for now)
 	if(llm.llm_local && !ready) {
 		load()
-		sys({breath:{breath:"Loading local llm",ready,final:true,rcounter,bcounter,interrupt}})
+		sys({breath:{breath:"Loading local llm",ready,final:true,rcounter,bcounter}})
 		return
 	}
 
@@ -247,10 +249,11 @@ async function resolve(blob,sys) {
 	const text = blob.human.text
 	if(!text || !text.length) return
 
-	console.log("llm: thinking about ",text)
-
 	// stuff new human utterance onto the durable llm reasoning context - this is session persistent
 	llm.messages.push( { role: "user", content:text } )
+
+	// anything older than this should be thrown away
+	const interrupt = llm._last_interrupt = blob.human.interrupt
 
 	// use a remote endpoint?
 	if(!llm.llm_local) {

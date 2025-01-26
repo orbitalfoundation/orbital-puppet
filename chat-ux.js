@@ -1,9 +1,12 @@
 
-import sys from 'https://cdn.jsdelivr.net/npm/orbital-sys@latest/src/sys.js'
-
-let llm_local = true
 let rcounter = 1000
 let typing = 0
+
+let microphone = true
+let llm_local = true
+let bargein = true
+let autosubmit = true
+let showagent = true
 
 //
 // paint text
@@ -57,7 +60,7 @@ PuppetChatInputTextArea.onkeydown = (event) => {
 	// in general disable speaking from overriding text input - @todo this is not being set in stt
 	typing = text && text.length ? true : false
 	// ignore incomplete input
-    if (event.key !== 'Enter' || event.shiftKey || event.altKey) return
+	if (event.key !== 'Enter' || event.shiftKey || event.altKey) return
 	// discard this event only so that it does not stuff a cr into the output
 	event.preventDefault()
 	// note that empty text can be sent (forces a barge in that stops the bot)
@@ -65,36 +68,35 @@ PuppetChatInputTextArea.onkeydown = (event) => {
 }
 
 PuppetControlMicrophone.onclick = (e) => {
-    e.target.classList.toggle('active');
-	if (e.target.classList.contains('active')) {
-		PuppetMicrophonePanel.style.display = 'block';
-	} else {
-		PuppetMicrophonePanel.style.display = 'none';
-	}
+	microphone = PuppetControlMicrophone.classList.toggle('active') ? true : false
+	PuppetMicrophonePanel.style.display = microphone ? 'block' : 'none'
+	sys({stt:{microphone}})
+	textToChatWindow(`Setting microphone to ${microphone ? 'on' : 'off'}`,false)
 }
 
 PuppetControlLocal.onclick = (e) => {
-    const active = e.target.classList.toggle('active');
-	llm_local = active ? true : false
+	llm_local = PuppetControlLocal.classList.toggle('active') ? true : false
 	sys({human:{llm_local}})
-	textToChatWindow('Settings: setting reasoning to',llm_local ? 'local' : 'remote',false)
-}
-
-PuppetControlAgent.onclick = (e) => {
-    const active = e.target.classList.toggle('active');
-    document.querySelectorAll('.PuppetMainRight').forEach(elem=>{
-        elem.style.display = active  ? 'block' : 'none'
-    })
+	textToChatWindow(`Setting reasoning to ${llm_local ? 'local' : 'remote'}`,false)
 }
 
 PuppetControlBarge.onclick = (e) => {
-    e.target.classList.toggle('active');
-	// - update!!! @todo
+	bargein = PuppetControlBarge.classList.toggle('active') ? true : false
+	sys({stt:{bargein}})
+	textToChatWindow(`Setting bargein to ${bargein ? 'on' : 'off'}`,false)
 }
 
 PuppetControlAuto.onclick = (e) => {
-    e.target.classList.toggle('active');
-	// - update!!! @todo
+	autosubmit = PuppetControlAuto.classList.toggle('active') ? true : false
+	sys({stt:{autosubmit}})
+	textToChatWindow(`Setting autosubmit to ${autosubmit ? 'on' : 'off'}`,false)
+}
+
+PuppetControlAgent.onclick = (e) => {
+	showagent = PuppetControlAgent.classList.toggle('active');
+	document.querySelectorAll('.PuppetMainRight').forEach(elem=>{
+		elem.style.display = showagent  ? 'block' : 'none'
+	})
 }
 
 //
@@ -106,18 +108,30 @@ function resolve(blob) {
 	// ignore
 	if(!blob || blob.time || blob.tick) return
 
-	// block spoken human utterances if user is typing
-	if(blob.human && blob.human.spoken && typing) {
-		textToChatWindow(`Blocking spoken utterance while typing (${blob.human.text})`,true)
-		return { force_abort_sys: true }
-	}
-
-	// paste spoken human utterances to chat
-	if(blob.human && blob.human.spoken && !typing) {
+	// intercept spoken traffic
+	if(blob.human && blob.human.spoken) {
+		// by convention nobody wants typed text to be erased by spoken text
+		if(typing) {
+			textToChatWindow(`Blocking spoken utterance while typing (${blob.human.text})`,true)
+			return { force_abort_sys: true }
+		}
+		// if barge in is not enabled then don't really allow any spoken text to get much further
+		if(!bargein) {
+			PuppetChatInputTextArea.value = blob.human.text
+			return { force_abort_sys: true }
+		}
+		// it is nice to be able to disable auto submit of final spoken utterances especially in noisy spaces
+		if(blob.human.final && !autosubmit) {
+			PuppetChatInputTextArea.value = blob.human.text
+			return { force_abort_sys: true }
+		}
+		// generally speaking final spoken text is allowed onwards; and also append it to chat history
 		if(blob.human.final) {
 			PuppetChatInputTextArea.value = ''
 			textToChatWindow(blob.human.text,true)
-		} else {
+		}
+		// non final spoken utterances can be pasted to the input window - but don't set the 'typing' count
+		else {
 			PuppetChatInputTextArea.value = blob.human.text
 		}
 	}

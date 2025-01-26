@@ -238,6 +238,7 @@ const worker = new Worker(URL.createObjectURL(new Blob([xenovaWorker],{type:'tex
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const positiveSpeechThreshold = 0.8
+let vlad
 
 // @todo the code clarity here is poor
 //system_stt: false,
@@ -384,7 +385,7 @@ async function start() {
 
 	try {
 		console.log("stt: starting voice activity detection")
-		const myvad = await globalThis.vad.MicVAD.new({
+		vlad = await globalThis.vad.MicVAD.new({
 			positiveSpeechThreshold,
 			minSpeechFrames: 5,
 			preSpeechPadFrames: 10,
@@ -392,7 +393,7 @@ async function start() {
 			onFrameProcessed: (probs) => { vad_helper(probs,null) },
 			onSpeechEnd: (audio) => { vad_helper(null,audio) }
 		})
-		myvad.start()
+		vlad.start()
 	} catch(err) {
 		console.error(uuid,err)
 	}
@@ -448,9 +449,10 @@ export const stt_system = {
 				// @todo tbd. system stt sucks so badly it is not used - but it should be enabled at least at some point
 				this.stt.system_stt = blob.stt.system_stt
 			}
-			if(blob.stt.hasOwnProperty('microphone')) {
+			if(blob.stt.hasOwnProperty('microphone') && vlad) {
 				// @todo turn microphone off or on - @todo always on for now - i just block the return data
 				this.stt.microphone = blob.stt.microphone
+				this.stt.microphone ? vlad.start() : vlad.pause()
 			}
 			if(blob.stt.hasOwnProperty('bargein')) {
 				// @todo right now we have to publish non-final or 'barge in' because ux needs to see spoken fragments
@@ -467,4 +469,4 @@ export const stt_system = {
 	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }
 
-//stt_system.stt.start()
+stt_system.stt.start()
