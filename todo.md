@@ -1,7 +1,18 @@
+
 # todo jan 19 2025
 
-	- ux
-		- status bar - used to have a status bar that reported on various status events - this could be re-introduced
+	- text overflow is annoying
+
+	- still noticing some older traffic get past the barge in interrupt detector
+
+	- noticed a final sentence not make it through once
+
+	- make microphone off really work
+
+	- if barge in is disabled then voice interruption should not be permitted to get past the chat system
+
+	- if submit on completion is disabled then full sentences should not be able to get past chat system
+
 
 	- puppet
 		- puppet gaze is supported and should be turned back on for a more powerful interaction

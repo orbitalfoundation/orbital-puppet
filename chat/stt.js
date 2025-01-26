@@ -467,4 +467,4 @@ export const stt_system = {
 	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }
 
-stt_system.stt.start()
+//stt_system.stt.start()

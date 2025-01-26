@@ -12,17 +12,20 @@ sys({
 		'https://cdn.jsdelivr.net/npm/orbital-volume/volume.js',
 
 		// puppet speech to text system - publishes new {human} packet including {human.bargein}
-		'https://cdn.jsdelivr.net/npm/orbital-puppet@1.2.3/chat/stt.js',
+		'here/chat/stt.js',
+
+		// bring in chat ux after stt so that speech packets can be blocked if the user is typing
+		'here/chat-ux.js',
 
 		// puppet reasoning system - observes {human} packets including {human.bargein} and may publish global {breath} packets
-		'https://cdn.jsdelivr.net/npm/orbital-puppet@1.2.3/chat/llm.js',
+		'here/chat/llm.js',
 
 		// puppet text to speech system - observes {breath} packets and generate {speech} packets - also observes {human.bargein}
-		'https://cdn.jsdelivr.net/npm/orbital-puppet@1.2.3/chat/tts.js',
+		'here/chat/tts.js',
 
 		// puppet animation system - binds to a {puppet} that references 3d geometry
 		// also observes {audio} packets and animates a specified geometry - also observes {human.bargein}
-		'https://cdn.jsdelivr.net/npm/orbital-puppet@1.2.3/puppet.js'
+		'here/puppet.js'
 	]
 })
 
@@ -143,7 +146,14 @@ sys([
 			stream: true,
 			messages: [{
 				role: "system",
-				content: "you are a helpful digital agent",
+				content: `
+					You are currently embodied as a 3d digital human fully capable of having emotions.
+					You cannot take actions in the real world yet.
+					A voice input and voice output system is being used for voice conversational interactions.
+					Your avatar is currently a professional female librarian and you are being presented on a computer screen.
+					Your current reasoning model is llama which is a distillation of most human knowledge.
+					Generally speaking your disposition is to try to think about questions people ask and answer as best you can.
+					`,
 			}],
 			temperature: 0.3,
 			max_tokens: 256,

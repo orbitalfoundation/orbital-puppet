@@ -532,7 +532,7 @@ async function _resolve_queue() {
 		const results = await perform_tts(blob.breath)
 
 		// interrupted? is current work obsolete? check after the delay abouve
-		if(this._last_interrupt > interrupt) {
+		if(interrupt && this._last_interrupt > interrupt) {
 			console.log("tts flushing 0",this._last_interrupt,interrupt)
 			this._queue = []
 			return
@@ -552,7 +552,7 @@ async function _resolve_queue() {
 		//console.log(uuid,'it took',time3-time1,'milliseconds to say',blob,'(',time1,time2,time3,')')
 
 		// interrupted?
-		if(this._last_interrupt > interrupt) {
+		if(interrupt && this._last_interrupt > interrupt) {
 			console.log("tts flushing!",this._last_interrupt,interrupt)
 			this._queue = []
 			return

@@ -1,67 +1,52 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-
-    <head>
-        <title>Puppet</title>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <script type="importmap">
-            {
-                "imports": {
-                    "three": "https://unpkg.com/three@0.148.0/build/three.module.js",
-                    "three/addons/": "https://unpkg.com/three@0.148.0/examples/jsm/",
-                    "assets/": "./assets/",
-                    "here/": "./"
-                }
-            }
-        </script>
-        <link rel="stylesheet" href="style.css">
-    </head>
-
-    <body>
-        <div class="PuppetContainer" id="PuppetContainer">
-            <div class="PuppetMain">
-                <div class="PuppetMainLeft">
-                    <div id="PuppetChatHistory"></div>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.148.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.148.0/examples/jsm/",
+            "assets/": "./assets/",
+            "here/": "./"
+        }
+    }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="PuppetContainer" id="PuppetContainer">
+    <div class="PuppetMain">
+      <div class="PuppetMainLeft">
+        <div id="PuppetChatHistory"></div>
+      </div>
+      <div class="PuppetMainRight">
+        <div style="width:100%;height:100%" id="volume001"></div>
+        <canvas class="PuppetMicrophonePanel" id="PuppetMicrophonePanel"></canvas>
+    </div>
+    </div>
+    <div class="PuppetBottom">
+            <div class="PuppetChatInput" style="width:100%">
+                <textarea style="width:100%" rows=1 id="PuppetChatInputTextArea" placeholder="Type your message here..."></textarea>
+            </div>
+            <div class="PuppetControl">
+                <div class="PuppetControlLeft">
+                    <button class="active" id="PuppetControlMicrophone"><img src="assets/icons/microphone.svg" alt="Microphone" /></button>
+                    <button class="active" id="PuppetControlAgent"><img src="assets/icons/agent.svg" alt="Agent" /></button>
+                    <button class="active" id="PuppetControlLocal">☁️</button>
+                    <button class="active" id="PuppetControlBarge"><img src="assets/icons/barge-in.svg" alt="Barge-in" /></button>
+                    <button class="active" id="PuppetControlAuto"><img src="assets/icons/auto-submit.svg" alt="Auto-submit" /></button>
                 </div>
-                <div class="PuppetMainRight">
-                    <div style="width:100%;height:100%" id="volume001"></div>
+                <div class="PuppetControlRight">
+                    <button id="PuppetControlSubmit"><img src="assets/icons/submit.svg" alt="Submit" /></button>
                 </div>
             </div>
-            <div id="PuppetBottom" class="PuppetMain PuppetBottom">
-                <div class="PuppetMainLeft">
-                    <div class="PuppetChatInput">
-                        <textarea rows=1 id="PuppetChatInputTextArea" placeholder="Type your message here..."></textarea>
-                    </div>
-                    <div class="PuppetControl">
-                        <div class="PuppetControlLeft">
-                            <button class="active" id="PuppetControlMicrophone"><img src="icons/microphone.svg" alt="Microphone" /></button>
-                            <button class="active" id="PuppetControlAgent"><img src="icons/agent.svg" alt="Agent" /></button>
-                            <button class="active" id="PuppetControlBarge"><img src="icons/barge-in.svg" alt="Barge-in" /></button>
-                            <button class="active" id="PuppetControlAuto"><img src="icons/auto-submit.svg" alt="Auto-submit" /></button>
-                        </div>
-                        <div class="PuppetControlRight">
-                            <button id="PuppetControlSubmit"><img src="icons/submit.svg" alt="Submit" /></button>
-                        </div>
-                    </div>
-                    <canvas class="PuppetMicrophonePanel" id="PuppetMicrophonePanel"></canvas>
+    </div>
+  </div>
 
-                    <div id="PuppetAbout" class="PuppetAbout">
-                        <a href="https://github.com/orbitalfoundation/orbital-puppet">See github</a>
-                    </div>
-
-                </div>
-                <div class="PuppetMainRight"></div>
-            </div>
-        </div>
-    </body>
-
+</body>
 </html>
 
-
 <script src="index.js" type="module"></script>
-
 <script src="audio-effect.js" type="module"></script>
-
-<script src="chat.js" type="module"></script>
-
