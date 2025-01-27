@@ -237,13 +237,16 @@ const worker = new Worker(URL.createObjectURL(new Blob([xenovaWorker],{type:'tex
 // @todo for code clarity this actually could be a class - it has some declarations associated with it
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async function start(state,sys) {
+async function configure(state,sys) {
 
 	//
-	// don't initialize more than once
+	// just config if active
 	//
 
-	if(state.vad) return
+	if(state.vad) {
+		state.microphone ? state.vad.start() : state.vad.pause()
+		return
+	}
 
 	//
 	// a helper for publishing events
@@ -286,7 +289,7 @@ async function start(state,sys) {
 			case 'done':
 				return
 			case 'update':
-				console.log("stt: whisper update - ignored")
+				//console.log("stt: whisper update - ignored")
 				return
 			case 'complete':
 				// fall thru
@@ -409,6 +412,6 @@ export const stt_system = {
 	resolve: function(blob,sys) {
 		if(!blob.stt) return
 		Object.assign(this._state,blob.stt)
-		start(this._state,sys)
+		configure(this._state,sys)
 	}
 }

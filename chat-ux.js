@@ -115,8 +115,8 @@ function resolve(blob) {
 			textToChatWindow(`Blocking spoken utterance while typing (${blob.human.text})`,true)
 			return { force_abort_sys: true }
 		}
-		// if barge in is not enabled then don't really allow any spoken text to get much further
-		if(!bargein) {
+		// if barge in is not enabled then disallow bargin
+		if(!blob.human.final && !bargein) {
 			console.log("chat - blocking bargein")
 			PuppetChatInputTextArea.value = blob.human.text
 			return { force_abort_sys: true }
