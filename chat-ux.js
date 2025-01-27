@@ -117,14 +117,22 @@ function resolve(blob) {
 		}
 		// if barge in is not enabled then don't really allow any spoken text to get much further
 		if(!bargein) {
+			console.log("chat - blocking bargein")
 			PuppetChatInputTextArea.value = blob.human.text
 			return { force_abort_sys: true }
 		}
 		// it is nice to be able to disable auto submit of final spoken utterances especially in noisy spaces
 		if(blob.human.final && !autosubmit) {
+			console.log("chat - blocking autosubmit")
 			PuppetChatInputTextArea.value = blob.human.text
 			return { force_abort_sys: true }
 		}
+
+		// for now let's treat 'stop' or 'stop please' or 'please stop' as just barge in not final
+		if(blob.human.text.startsWith('stop')) {
+			blob.human.final = false
+		}
+
 		// generally speaking final spoken text is allowed onwards; and also append it to chat history
 		if(blob.human.final) {
 			PuppetChatInputTextArea.value = ''

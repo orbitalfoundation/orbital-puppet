@@ -237,80 +237,111 @@ const worker = new Worker(URL.createObjectURL(new Blob([xenovaWorker],{type:'tex
 // @todo for code clarity this actually could be a class - it has some declarations associated with it
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const positiveSpeechThreshold = 0.8
-let vlad
-
-// @todo the code clarity here is poor
-//system_stt: false,
-//microphone: true,
-//bargein: false,
-//autosubmit: false,
-
-async function start() {
-
-	// while 'this' is preserved through the closures it is more clear to be explicit
-	const context = this
-
-	// response counter, increments once per full final response
-	let rcounter = 1
-
-	// breath counter, increments per fraction of a response captured then is reset
-	let bcounter = 1
+async function start(state,sys) {
 
 	//
-	// publish a message to pub sub observers
+	// don't initialize more than once
 	//
-	const publish = (human={}) => {
+
+	if(state.vad) return
+
+	//
+	// a helper for publishing events
+	//
+
+	const publish_helper = (human={}) => {
 	
-		// @todo actually disable microphone, for now i just ingore all events instead
-		if(!this.microphone) return
-
 		const defaults = {
 			text:"",
-			interrupt: performance.now(),
 			confidence:1,
 			final:false,
 			spoken:true,
-			rcounter, bcounter,
+			interrupt: performance.now(),
 		}
 
-		if(human.final) {
-			rcounter++
-			bcounter = 1
-		} else {
-			bcounter++
-		}
-
-		// merge overtop defaults
+		// override but include defaults
 		human = Object.assign(defaults,human)
 
 		// if bargein enabled then all human voice will interrupt / force stop all downstream effects always
-		if(this.bargein) human.bargein = true
+		if(state.bargein) human.bargein = true
 
-		// if autosubmit is off then mark as not 'final' event - although incomplete events are allwed thru
-		if(!this.autosubmit) human.final = false
+		// if autosubmit is off then force mark as not 'final' event - although incomplete events are allowed thru
+		if(!state.autosubmit) human.final = false
 
 		// publish - testing out an idea of formal outputs interfaces on components rather than directly to sys()
-		context.human_out({ human },sys)
-
+		sys({human})
 	}
 
 	//
-	// barge-in and audio completion callback
+	// stt callback
+	//
+
+	const stt_helper = (event) => {
+		if(!event.data) return
+	    switch(event.data.status) {
+			default:
+			case 'initiate':
+			case 'download':
+			case 'progress':
+			case 'done':
+				return
+			case 'update':
+				console.log("stt: whisper update - ignored")
+				return
+			case 'complete':
+				// fall thru
+	    }
+
+		const final = event.data.status === 'complete'
+
+		let text = final ? event.data.data.text : event.data.data[0]
+		if(text && typeof text === 'string') text = text.trim(); else text = ""
+
+	    const comment = final ? `STT final: ${text}` : `STT in-progress: ${text}`
+
+		// publish completed audio
+		publish_helper({text,final,comment})
+	}
+
+	worker.addEventListener("message", stt_helper )
+
+	//
+	// load ricky's vad system like so for now
+	// @todo newer revs of this engine do not work for some reason
+	//
+
+    await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+//        script.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js";
+        script.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.js";
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+
+    await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/bundle.min.js";
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+
+	//
+	// a helper for voice activity detector completion
 	//
 
 	const vad_helper = (probs=null,audio=null) => {
 
 		// if a probability is supplied and it is not likely speech then return
 		const confidence = probs && probs.isSpeech ? probs.isSpeech : 1
-		if(confidence < positiveSpeechThreshold) return
+		if(confidence < (state.threshold || 0.8)) return
 
-		// publish barge in to local pubsub observers - marking it as not final here
-		const comment = `User vocalization heard ${bcounter}`
-		publish({confidence,final:false,comment})
+		// publish a bargein 
+		publish_helper({confidence})
 
-		// if actual audio has arrived then may pass it onto stt for real processing
-		if(audio && !this.system_stt) {
+		// convert the completed audio blob to text using whisper
+		if(audio && !state.system_stt) {
 			worker.postMessage({
 				audio,
 				model: DEFAULTS.DEFAULT_MODEL,
@@ -323,77 +354,29 @@ async function start() {
 	}
 
 	//
-	// stt callback
-	//
-
-	const stt_helper = (event) => {
-		if(!event.data) return
-	    switch(event.data.status) {
-	    default:
-	    case 'initiate':
-	    case 'download':
-	    case 'progress':
-	    case 'done':
-	        return
-	    case 'update':
-	    case 'complete':
-	    	// fall thru
-	    }
-
-		const final = event.data.status === 'complete'
-
-		let text = final ? event.data.data.text : event.data.data[0]
-		if(text && typeof text === 'string') text = text.trim(); else text = ""
-
-	    const comment = final ? `STT final: ${text}` : `STT in-progress: ${text}`
-
-		// workaround hack - there is a bug in the vad where it needs to be reset - @todo examine
-		if(final && this._vad_timeout) { clearTimeout(this._vad_timeout); this._vad_timeout = 0 }
-
-		// publish to the local pubsub group
-		publish({text,final,comment})
-	}
-
-	worker.addEventListener("message", stt_helper )
-
-	//
-	// load ricky's vad system like so for now
-	// @todo newer revs of this engine do not work for some reason
-	//
-
-    await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js";
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-
-    await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.19/dist/bundle.min.js";
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-
-	//
 	// start up the vad - this drives the custom stt system
 	// detect barge-in events and final audio and generally driven stt processing
 	// due to the deferred load of the script above a retry strategy is used for loading for now @todo improve
 	//
 
 	try {
-		console.log("stt: starting voice activity detection")
-		vlad = await globalThis.vad.MicVAD.new({
-			positiveSpeechThreshold,
+		state.vad = await globalThis.vad.MicVAD.new({
+			positiveSpeechThreshold:state.threshold || 0.8,
 			minSpeechFrames: 5,
 			preSpeechPadFrames: 10,
 			model: "v5",
-			onFrameProcessed: (probs) => { vad_helper(probs,null) },
-			onSpeechEnd: (audio) => { vad_helper(null,audio) }
+			onFrameProcessed: (args) => {
+				// console.log("Speech frame data",args)
+				vad_helper(args,null)
+			},
+			onSpeechStart: (args) => {
+				// console.log("Speech start detected",args)
+			},
+			onSpeechEnd: (audio) => {
+				vad_helper(null,audio)
+			}
 		})
-		vlad.start()
+		state.vad.start()
 	} catch(err) {
 		console.error(uuid,err)
 	}
@@ -401,72 +384,31 @@ async function start() {
 }
 
 ///
-/// an stt manager - publishes human utterances and uses rickys excellent barge in detector
+/// speech to text system - there is only one microphone on a computer so there is only one instance of an stt
 ///
-/// publishing salient details are:
+/// emits 'human' blobs:
 ///
 ///		{ human: {
 ///			text:'full or partial utterance',
-///			rcounter, bcounter,
-///			interrupt,
 ///			spoken: true,
 ///			final:true/false,
+///			interrupt,
 ///		} }
-///
-/// the interrupt field is used as a timestamp to detect when barge in is more recent than last job
 ///
 
 export const stt_system = {
 
-	uuid,
-
-	// a more or less self contained speech to text component - playing with component layout
-	// note that these fields could directly pollute the entity namespace but might trigger other observers
-	// generally it feels better to package a component as a single blob and leave root namespace open
-
-	stt: {
-		canonical:true, // @todo think of other ways to reserve schema namespaces for components
-		schema:true, // a schema reservation idea @todo continue to refine this idea
+	_state: {
 		system_stt: false,
 		microphone: true,
-		bargein: false,
-		autosubmit: false,
-		start,
-
-		// @test this is a test - this method handle can be overridden by a direct wire if desired
-		human_out: (blob,sys)=> { sys(blob) }
+		bargein: true,
+		autosubmit: true,
+		threshold: 0.8,
 	},
 
-	// reserve the term 'stt' in entity namespace to be extra clear that components should not collide
-	// @todo an easier way to do this would be to just mark the component itself as canonical or schema true
-	schema: { stt: {}, },
-
-	// watch public event streams - @todo could use a filter at sys level to catch configuration without conditional
 	resolve: function(blob,sys) {
-		if(!blob || blob.tick || blob.time) return
-		if(blob.stt) {
-			if(blob.stt.hasOwnProperty('system_stt')) {
-				// @todo tbd. system stt sucks so badly it is not used - but it should be enabled at least at some point
-				this.stt.system_stt = blob.stt.system_stt
-			}
-			if(blob.stt.hasOwnProperty('microphone') && vlad) {
-				// @todo turn microphone off or on - @todo always on for now - i just block the return data
-				this.stt.microphone = blob.stt.microphone
-				this.stt.microphone ? vlad.start() : vlad.pause()
-			}
-			if(blob.stt.hasOwnProperty('bargein')) {
-				// @todo right now we have to publish non-final or 'barge in' because ux needs to see spoken fragments
-				// so this doesn't actually do anything here right now
-				this.stt.bargein = blob.stt.bargein
-			}
-			if(blob.stt.hasOwnProperty('autosubmit')) {
-				// for now we just block final events; so they should show up in ux as incomplete or not final events
-				this.stt.autosubmit = blob.stt.autosubmit
-			}
-		}
-	},
-
-	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
+		if(!blob.stt) return
+		Object.assign(this._state,blob.stt)
+		start(this._state,sys)
+	}
 }
-
-stt_system.stt.start()

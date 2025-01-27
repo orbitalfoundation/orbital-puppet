@@ -28,6 +28,8 @@ export class PuppetClass {
 	volume = null
 	sound = null
 
+	_latest_interrupt = 0
+
 	///
 	/// associate a puppet with a volume - can be done at any time
 	///
@@ -44,13 +46,13 @@ export class PuppetClass {
 	///
 
 	stop() {
-		console.log(uuid,"... stopping all")
 		if(!this.volume) return
 		this.volume.relaxation = 0
 		this.volume.sequence = []
 		this.queue = []
 		emote(this.volume,'neutral')
 		if(this.sound) {
+			this.sound.stop()
 			this.sound.disconnect()
 			this.sound = null
 		}
@@ -70,7 +72,7 @@ export class PuppetClass {
 	/// do performance
 	///
 
-	perform(performance) {
+	resolve_queue(performance) {
 		if(this.obliterated) return
 		this.queue.push(performance)
 		if(this.queue.length == 1) this._start_next_performance()
@@ -87,6 +89,12 @@ export class PuppetClass {
 
 		const performance = this.queue[0]
 
+		// ignore if old
+		if(performance.interrupt < this._latest_interrupt) {
+			this._start_next_performance()
+			return
+		}
+
 		// facial emotion
 		if(performance.emotion) {
 			emote(volume,performance.emotion)
@@ -101,8 +109,8 @@ export class PuppetClass {
 		volume.sequence = visemes_sequence(volume,performance.whisper)
 
 		// may gaze at the player when starting an utterance
-		// console.log('*** npc puppet gaze begin',performance.segment)
-		// this.gaze(-1,-1,performance.segment < 2 ? 0 : 0.5 )
+		performance.segment = 0 // @todo this is not set anymore
+		gaze(volume,-1,-1,performance.segment < 2 ? 0 : 0.5 )
 
 		// start audio - a slight hassle due to callback architecture - drives whole system forward
 		if(performance.audio) {
@@ -113,7 +121,7 @@ export class PuppetClass {
 
 			const completed = () => {
 				this.sound = null
-				sys({ audio_done: { final: performance.final ? true : false }})
+				//sys({ audio_done: { final: performance.final ? true : false }})
 				this.queue.shift()
 				this._start_next_performance()
 			}
@@ -149,8 +157,8 @@ export class PuppetClass {
 		// blink
 		blink(volume,time)
 
-		// @todo gaze at player
-		// this.gaze_update()
+		// gaze at player
+		gaze_update(volume,time)
 
 		// an experimental approach for relaxation after effects - may revise
 		if(!volume.relaxation || volume.relaxation < time ) {
@@ -170,8 +178,9 @@ export class PuppetClass {
 }
 
 //
-// @todo stuff this somewhere better
-// probably should be a part of volume - but has to callback to here
+// @todo arguably audio.js module could do this - we just need a tightly integrated loop here
+// another option is to just include it directly and use it as a raw resource rather than via orbital sys
+// @todo or this could be part of volume
 //
 
 let context

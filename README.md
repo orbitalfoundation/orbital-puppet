@@ -4,72 +4,75 @@ A 'no strings attached' voice-to-voice conversational 3d puppet with rigged face
 
 See a demo at https://orbitalfoundation.github.io/orbital-puppet/
 
-Notes:
-
-Intended to be driven within an orbital-sys based system ( see https://github.com/orbitalfoundation ) but can probably be made to work standalone as well. You will need to load your own 3d model if you don't leverage the orbital tooling - see https://github.com/orbitalfoundation/orbital-volume for the model loader used here.
-
-Animates eyes, mouth visemes, facial expressions, head rotation.
-
-Generates open whisper stt data including word timestamps. Leverages Mika's viseme generator here: https://github.com/met4citizen/TalkingHead although may eventually switch to a trained neural network for audio to visemes.
-
 ## Why have embodied puppets?
 
 * Embodied interfaces may be satisfying to people who are not adapted to 2d interfaces or who were not part of the first wave of technology adoption. For example less than 20% of people can touch type fluently, and there are still billions of people who have never used a computer.
 
-* As humans we have wetware that processes human faces and gestures. It can be a more powerful learning mechanism or communication mechanism - there may be some papers on this.
+* As humans we have wetware that processes human faces and gestures. It can be a more powerful learning mechanism or communication mechanism even for people who are used to 2d interfaces.
 
-* Syncing mouth movement provides a sense of presence and aliveness - the avatar is more engaging.
-
-* Presence as a whole is conveyed by accurate emotions, breath pauses and breathing, body guestures matching conversation, body language in general, blinking, facial ticks, and gaze as well.
-
-* Uncanny Valley. Avatars do not need to look real. RPM models are actually pretty much perfect.
+* The technical challenge is interesting by itself. Syncing mouth movement provides a sense of presence and aliveness is tricky. Presence as a whole can be conveyed by accurate emotions, breath pauses and breathing, body guestures matching conversation, body language in general, blinking, facial ticks, and gaze as well. However at the same time avoiding an uncanny valley effect is a balancing act.
 
 ## Code layout
 
-The design consists of several independent pieces wired together:
+The design consists of several independent pieces wired together using the orbital-sys pub/sub architecture:
 
 ```
-1) STT - speech to text support based on vits open whisper
-		- publishes stt events
-		- publishes barge-in events (using a voice activity detector)
+1) STT
+- speech to text support based on vits open whisper
+- publishes stt events
+- publishes barge-in events (using a voice activity detector)
 
-2) UX - [deprecated - see example code in index.js that does this instead]
-	  - a fragment of html that produces a text chat input window
-		- listens to stt events and may disallow interruptions
-		- listens to barge-in events and may disallow them if settings are disallowed
-		- listens to 'status' events and paints to the status bar
-		- listens to 'history' events and paints to the chat history
-		- publishes chat events
+2) UX
+- (pulled out of core library and now in the root folder)
+- a fragment of html that produces a text chat input window
+- listens to stt events and may disallow interruptions
+- listens to barge-in events and may disallow them if settings are disallowed
+- listens to 'status' events and paints to the status bar
+- listens to 'history' events and paints to the chat history
+- publishes chat events
 
-3) LLM - a wasm based llm that only runs on desktop or higher powered devices
-		- listens to chat events
-		- listens to barge-in events and aborts any ongoing reasoning if out of date
-		- publishes status events
-		- publishes history events
-		- publishes 'breath' events
+3) LLM
+- both remote url support and local wasm based llm that runs on desktop or higher powered devices
+- listens to chat events
+- listens to barge-in events and aborts any ongoing reasoning if out of date
+- publishes status events
+- publishes history events
+- publishes 'breath' events which are intended for tts
 
-4) TTS - a wasm based tts component; also has its own stt in order to get word timings for visemes
-		- listens to breath events
-		- listens to barge in events to abort out of date tts work
-		- publishes audio out events
+4) TTS
+- both remote and local wasm based tts; also has its own stt in order to get word timings for visemes
+- listens to breath events
+- listens to barge in events to abort out of date tts work
+- publishes audio out events
 
-5) PUPPET - a 3js and readyplayerme rigged 3d puppet
-		- listens to audio_in events
-		- listens to barge-in events and aborts out of date animation work
-		- publishes status out events on audio completion
+5) PUPPET
+- a 3js and readyplayerme rigged 3d puppet
+- listens to audio_in events
+- listens to barge-in events and aborts out of date animation work
+- publishes status out events on audio completion
+- animates eyes, mouth visemes, facial expressions, head rotation...
+- leverages Mika's viseme generator here: https://github.com/met4citizen/TalkingHead 
+- may eventually switch to a trained neural network for audio to visemes.
+
+6) AUDIO - a standalone component that publishes audio
+
+The pipeline routes traffic from end to end:
+
+	STT -> LLM -> TTS -> PUPPET -> AUDIO
+
+STT can produce 'barge in' events which abort whatever downstream handlers are doing.
+
 ```
 
-## Manifests
+## Orbital-sys
 
-This system leverages orbital-sys which has an idea of declarative manifests. There are some manifests here that describe the system as a whole.
+I've framed this app using orbital-sys which is an experimental pub/sub harness or framework. It's fairly easy to rip that out if you wish by directly wiring the various components to each other. See https://github.com/orbitalfoundation.
 
-1) LLM description manifest. Describes a single LLM in the 'scene' - with an idea that at some point there may be more than one.
+It's worth noting that orbital-sys encourages the use of a declarative 'manifest' notation for describing state and all components together to compose a systems level view of everything (such as the scene, camera, lights, puppets, stt, llm, tts, audio and so on) - see index.js for details.
 
-2) Scene overall. Simply describing lighting, camera, avatar and the like.
+Rendering is accomplished with another orbital-sys module 'Volume' - a shim I've built around 3js - see https://github.com/orbitalfoundation/orbital-volume - this loads models and geometry and renders the view... it is fairly mundane.
 
-3) The above code components and wiring is also described in the same declarative grammar.
-
-# Revisions
+# Revision notes
 
 ## Revision 1: Text (done)
 

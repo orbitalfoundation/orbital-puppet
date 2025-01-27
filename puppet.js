@@ -18,11 +18,6 @@ async function resolve(blob) {
 		return
 	}
 
-	// stop all puppets on barge in - @todo later only stop puppet near player in space
-	if(blob.human && blob.human.bargein) {
-		Object.values(this._puppets).forEach(puppet => puppet.stop() )
-	}
-
 	// bind new puppets - @todo for now i require that blobs have a uuid - revisit
 	if(blob.puppet && blob.volume && blob.uuid) {
 		const uuid = blob.uuid
@@ -45,17 +40,29 @@ async function resolve(blob) {
 		}
 	}
 
-	// observe puppet directed performances - use first puppet for now
+	// pick a puppet
+	const puppets = Object.values(this._puppets)
+	const puppet = puppets.length ? puppets[0] : null
+	if(!puppet) return
+
+	// detect barge in?
+	if(blob.human && blob.human.bargein) {
+		puppet.stop()
+		puppet._latest_interrupt = blob.human.interrupt
+	}
+
+	// get out early
+	if(blob.audio && blob.audio.whisper && puppet._latest_interrupt > blob.audio.interrupt) {
+		return
+	}
+
+	// observe puppet directed performances - use first puppet for now - @todo improve
 	if(blob.audio && blob.audio.whisper) {
-		const puppets = Object.values(this._puppets)
-		const puppet = puppets.length ? puppets[0] : null
-		if(puppet) {
-			puppet.perform({
-				whisper:blob.audio.whisper,
-				audio:blob.audio.data,
-				final:blob.audio.final
-			})
-		}
+		puppet.resolve_queue({
+			whisper:blob.audio.whisper,
+			audio:blob.audio.data,
+			final:blob.audio.final
+		})
 	}
 
 }

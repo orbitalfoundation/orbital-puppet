@@ -1,69 +1,82 @@
 
 const uuid = 'audio_system'
 
-let rcounter = 0
-let bcounter = 0
 let context = null
-let sound = null
 
-function play_audio(data) {
-	return new Promise((happy,sad)=>{
-		if(!context) context = new AudioContext({sampleRate:16000})
-		context.decodeAudioData(data, (audioBuffer) => {
-			sound = context.createBufferSource()
-			sound.buffer = audioBuffer
-			sound.connect(context.destination)
-			sound.addEventListener('ended', (results) => {
-				// stop the sound - remove it - but it can also be removed externally
-				if(sound) {
-					sound.disconnect()
-					sound = null
-				}
-				happy()
+async function resolve_queue(audio,handler,sys) {
+
+	if(!context) context = new AudioContext({sampleRate:16000})
+
+	handler._queue.push(audio)
+	if(handler._queue.length != 1) return
+
+	while(handler._queue.length) {
+
+		const audio = handler._queue[0]
+
+		// promisfy sound playback in queued order
+		const p = new Promise((happy,sad)=>{
+			context.decodeAudioData(audio.data, (audioBuffer) => {
+				let sound = handler._sound = context.createBufferSource()
+				sound.buffer = audioBuffer
+				sound.connect(context.destination)
+				sound.addEventListener('ended', (results) => {
+					if(sound) {
+						sound.disconnect()
+						handler._sound = sound = null
+					}
+					happy()
+				})
+				context.resume()
+				sound.start()
 			})
-			context.resume()
-			sound.start()
 		})
-	})
-}
 
-async function _resolve_queue() {
-	while(true) {
-		if(!this._queue.length) break
-		const blob = this._queue[0]
-		await play_audio(blob.audio.data)
-		sys({ audio_done: { final: blob.audio.final ? true : false }})
-		this._queue.shift()
+		await p()
+
+		// helpful to know this for ux
+		// sys({ audio_done: { final: audio.final ? true : false }})
+
+		handler._queue.shift()
 	}
 }
-
-//
-// resolve - @note must not be async else will stall rest of pipeline
-//
 
 function resolve(blob,sys) {
 
-	// barge in? - @todo in a scenario with multiple llms it may not make sense to stop all of them on any interruption
-	if(blob.human) {
-		this._queue = []
-		if(sound) {
-			sound.disconnect()
-			sound = null
+	if(!blob || blob.time || blob.tick) return
+
+	// save audio producing objects - there's some contention between two different users of namespace
+	if(blob.audio && blob.uuid && !blob.audio.data) {
+		const handler = this._handlers[blob.uuid] = blob
+		handler._queue = []
+	}
+
+	// find handler for event - pick first one for now improve later @todo
+	let candidates = Object.values(this._handlers)
+	const handler = candidates.length ? candidates[0] : null
+	if(!handler) return
+
+	// stop handler if there is a bargein
+	if(blob.human && blob.human.bargein) {
+		console.log("audio - got barge in")
+		handler._queue = []
+		if(handler._sound) {
+			console.log("audio - stopping")
+			handler._sound.stop()
+			handler._sound.disconnect()
+			handler._sound = null
 		}
 	}
 
-	// queue audio
+	// ignore non audio data
 	if(!blob.audio || !blob.audio.data) return
-	this._queue.push(blob)
-	if(this._queue.length !== 1) return
-	this._resolve_queue()
+
+	// handle - do not await
+	_resolve_queue(blob.audio,handler,sys)
 }
 
 export const audio_system = {
 	uuid,
 	resolve,
-	_queue: [],
-	_resolve_queue,
-	_bargein: 0,
-	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
+	_handlers: {}
 }

@@ -67,7 +67,10 @@ async function load(sys) {
 	}
 }
 
-function llm_remote(sys,llm,tts,rcounter,bcounter,interrupt) {
+function llm_remote(llm,sys) {
+
+	// get the timestamp associated with the current work
+	const interrupt = llm._latest_interrupt
 
 	// configure body - with some flexibility hacked in for other servers aside from openai
 	let body = {
@@ -100,10 +103,9 @@ function llm_remote(sys,llm,tts,rcounter,bcounter,interrupt) {
 			}
 
 			// throw away old traffic
-			if(interrupt < llm._last_interrupt) {
-				return
-			}
+			if(interrupt < llm._latest_interrupt) return
 
+			// split up the input into smaller chunks for the tts and send onwards
 			response.json().then( json => {
 				let sentence = null
 				if(json.choices) {
@@ -116,7 +118,7 @@ function llm_remote(sys,llm,tts,rcounter,bcounter,interrupt) {
 				if(sentence) {
 					const fragments = sentence.split(/[.!?]|,/);
 					fragments.forEach(breath => {
-						sys({breath:{breath,tts,ready:true,final:true,rcounter,bcounter,interrupt}})
+						sys({breath:{breath,ready:true,final:true,interrupt}})
 					})
 				}
 			})
@@ -125,68 +127,63 @@ function llm_remote(sys,llm,tts,rcounter,bcounter,interrupt) {
 	} catch(err) {
 		console.error("llm: reasoning catch error - bad remote url?",err)
 	}
-
-	return
 }
 
-function llm_local(sys,llm,tts,rcounter,bcounter,interrupt) {
+function llm_local(llm,sys) {
 
-	// start reasoning
+	// get the timestamp associated with the current work
+	const interrupt = llm._latest_interrupt
+
+	// start reasoning locally
 	llm.thinking = true
 
-	// helper: publish each breath fragment as it becomes large enough
+	// helper: publish each breath collection of words as it becomes long enough for tts to bother with it
 	let breath = ''
 	const breath_helper = (fragment=null,finished=false) => {
+
+		if(llm._latest_interrupt > interrupt) {
+			console.log('llm: skipping - work is old',interrupt,llm)
+			return
+		}
+
 		if(!fragment || !fragment.length || finished) {
 			if(breath.length) {
-				bcounter++
-				sys({breath:{breath,tts,ready,final:true,rcounter,bcounter,interrupt}})
+				const final = true
+				sys({breath:{breath,ready,final,interrupt}})
 				breath = ''
 			}
 			return
 		}
+
 		const match = fragment.match(/.*?[.,!?]/);
 		if(breath.length < MIN_BREATH_LENGTH || !match) {
 			breath += fragment
 		} else {
 			const i = match[0].length
 			breath += fragment.slice(0,i)
-			bcounter++
-			sys({breath:{breath,tts,ready,final:false,rcounter,bcounter,interrupt}})
+			const final = false
+			sys({breath:{breath,ready,final,interrupt}})
 			breath = fragment.slice(i)
 		}
 	}
 
-	// helper: a callback per chunk
+	// async helper: a callback per chunk - the lower level engine hangs if this is not fully consumed
 	const helper = async (asyncChunkGenerator) => {
 
-		// iterate over async iterables ... @todo can we abort this if we wish?
+		// iterate over async iterables ... note that seems like this loop should not be aborted early
 		for await (const chunk of asyncChunkGenerator) {
-
 			if(!chunk.choices || !chunk.choices.length || !chunk.choices[0].delta) continue
 			const content = chunk.choices[0].delta.content
 			const finished = chunk.choices[0].finish_reason
-			if(llm._last_interrupt > interrupt) {
-				console.log('llm: skipping - work is old',interrupt,llm)
-				//return - actually let it exhaust the work since it seems to crash otherwise
-			} else {
-				breath_helper(content,finished === 'stop')
-			}
+			breath_helper(content,finished === 'stop')
 		}
 
-		// stuff the final message onto the llm history
+		// stuff the entire final message onto the llm history
 		const paragraph = await engine.getMessage()
 		llm.messages.push( { role: "assistant", content:paragraph } )
-
-		if(llm._last_interrupt > interrupt) {
-			console.log('llm: skipping - work is old',interrupt,llm)
-			//return - actually let it exhaust the work since it seems to crash otherwise
-		} else {
-			sys({breath:{paragraph,breath:'',tts,ready,final:true,rcounter,bcounter,interrupt}})
-		}
 	}
 
-	// begin streaming support of llm text responses as breath chunks
+	// begin streaming support of llm text responses as 'breath' packets
 	engine.chat.completions.create(llm).then(helper)
 }
 
@@ -194,7 +191,7 @@ const llm_entities = {}
 
 async function resolve(blob,sys) {
 
-	// ignore
+	// ignore?
 	if(!blob || blob.tick || blob.time) return
 
 	// accumulate a list of entities that have llm reasoning in them
@@ -213,66 +210,56 @@ async function resolve(blob,sys) {
 		return
 	}	
 	const llm = entity.llm
-	const tts = entity.tts || null
-
-	// this is the highest counter that the callbacks will know about
-	const rcounter = blob.human.rcounter || 1
-	let bcounter = blob.human.bcounter || 1
 
 	// override settings?
 	if(blob.human.hasOwnProperty('llm_local')) {
 		llm.llm_local = blob.human.llm_local ? true : false
 	}
 
-	// ignore if no barge in
+	// ignore if no barge in set - callers must set this
 	if(!blob.human.bargein) return
 
-	// always stop ongoing local reasoning - cannot do this for remote
+	// try to stop any local reasoning; otherwise extra computation is done that is thrown away later
 	if(llm.thinking && engine && engine.interruptGenerate) {
 		engine.interruptGenerate()
 		llm.thinking = false
 	}
 
-	// load local llm? (throws away request for now)
+	// load local llm? (throws away requests if it is not ready) - ok to hit the load() endpoint over and over
 	if(llm.llm_local && !ready) {
 		load(sys)
 		return
 	}
 
-	// if utterance is incomplete (such as a barge in) then done - caller MUST set final also to do work
+	// only handle final utterances - callers must set this
 	if(!blob.human.final) return
 
-	// get text if any - caller should supply text to work on
+	// only handle valid text - callers must set text
 	const text = blob.human.text
 	if(!text || !text.length) return
 
-	// stuff new human utterance onto the durable llm reasoning context - this is session persistent
+	// remember user utterance as part of an ongoing session durable conversation
 	llm.messages.push( { role: "user", content:text } )
 
-	// anything older than this should be thrown away
-	const interrupt = llm._last_interrupt = blob.human.interrupt
+	// update the latest interrupt - important for throwing away obsolete work
+	llm._latest_interrupt = blob.human.interrupt
 
-	// use a remote endpoint?
-	if(!llm.llm_local) {
-		llm_remote(sys,llm,tts,rcounter,bcounter,interrupt)
-	} else {
-		llm_local(sys,llm,tts,rcounter,bcounter,interrupt)
-	}
+	// do work
+	llm.llm_local ? llm_local(llm,sys) : llm_remote(llm,sys)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
 /// llm-helper resolve
 ///
-/// listens for things like {human:{text:"how are you?"},llm:{},tts:{}}
+/// listens for things like {human:{text:"how are you?"}}
 ///
-/// publishes {llm:{breath:"llm response fragment",final:true|false}}
+/// publishes {llm:{breath:"llm response fragment",final:true|false},interrupt}
 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const llm_system = {
 	uuid,
 	resolve,
-	//singleton: true // an unused idea to distinguish systems from things that get multiply instanced @todo
 }
 

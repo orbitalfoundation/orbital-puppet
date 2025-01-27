@@ -118,7 +118,10 @@ sys([
 	//
 
 	{
+		// uuid - mandatory 
 		uuid: 'alexandria',
+
+		// 3d geometry
 		volume: {
 			geometry: 'file',
 			url: 'https://models.readyplayer.me/664956c743dbd726eefeb99b.glb?morphTargets=ARKit,Oculus+Visemes,mouthOpen,mouthSmile,eyesClosed,eyesLookUp,eyesLookDown&textureSizeLimit=1024&textureFormat=png',
@@ -127,21 +130,23 @@ sys([
 			},
 			animations: { default: `${import.meta.url}/../assets/animations/unarmed-idle.glb` },
 		},
+
+		// puppet effects - required if you want to animate this puppet
 		puppet: {},
 
-		// @todo unused but may want to do this to allow configuration
+		// configures stt but note there is only one stt globally not one per puppet
 		stt: {
-			// microphone on or off
-			microphone: true,
 			// built-in stt
 			builtin_stt: false,
+			// microphone on or off
+			microphone: true,
 			// barge in allowed - allow spoken aborts (although important for speech to speech it can be overly annoying in noisy environments)
 			bargein: true,
 			// auto-submit complete spoken utterances; a nice feature in voice to voice interactions
 			autosubmit: true,
-		
 		},
 
+		// configure llm - mandatory
 		llm: {
 			stream: true,
 			messages: [{
@@ -167,6 +172,7 @@ sys([
 
 		},
 
+		// configure tts props - mandatory
 		tts: {
 			remote: false,
 			url: 'https://api.openai.com/v1/audio/speech',
@@ -183,6 +189,9 @@ sys([
 
 			// do stt for whisper timings remotely
 			whisper_remote: false,
-		}
+		},
+
+		// configure audio properties - mandatory
+		audio: {},
 	},
 ])

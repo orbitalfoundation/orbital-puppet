@@ -73,6 +73,8 @@ function fixDollars(sentence) {
 
 async function perform_tts_remote(args) {
 
+	const url = args.url || 'https://api.openai.com/v1/audio/speech'
+
 	const props = {
 		method: 'POST',
 		headers: {
@@ -85,8 +87,6 @@ async function perform_tts_remote(args) {
 			input: args.text,
 		}),
 	}
-
-	const url = args.url || 'https://api.openai.com/v1/audio/speech'
 
 	try {
 		const response = await fetch(url,props)
@@ -103,22 +103,25 @@ async function perform_tts_remote(args) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-// perform tts
+// perform tts - async promise returns results
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-function perform_tts(breath) {
+function perform_tts(breath,tts) {
 
 	// patch up dollar sounds
 	const text = fixDollars(breath.breath).replace(/[*<>#%-]/g, "")
 	if(!text || !text.length) return
-	const args = { ...breath.tts, text }
+	const args = {...tts, text }
+
+	// hack - don't send this to worker
+	delete args._queue
 
 	// allow remote tts for performance
-	if(breath.tts && breath.tts.remote && breath.tts.url) {
+	if(tts && tts.remote && tts.url) {
 		return perform_tts_remote(args)
 	}
 
-	// do local tts
+	// do local tts - returning results to promise to awaiting caller
 	return new Promise((happy,sad)=>{
 		worker_tts.onmessage = async (event) => { happy(event) }
 		worker_tts.postMessage(args)
@@ -284,7 +287,6 @@ function speechWorker(audio) {
 				if(event.data.result && event.data.result.transcript && event.data.result.transcript.chunks)
 				if(event.data.result.segments && event.data.result.segments.length)
 				{
-					//console.log("done")
 					const chunks = event.data.result.transcript.chunks
 					const speaker = event.data.result.segments[0].label
 					resolve({chunks,speaker})
@@ -500,13 +502,8 @@ async function perform_stt_remote(config,arrayBuffer) {
 }
 
 const perform_stt = async (config,arrayBuffer) => {
-
 	const buffer = arrayBuffer.slice(0)
-
-	if(!buffer) {
-		return
-	}
-
+	if(!buffer) return
 	if(config && config.whisper_remote) {
 		const whisper = await perform_stt_remote(config,buffer)
 		return whisper
@@ -517,80 +514,65 @@ const perform_stt = async (config,arrayBuffer) => {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-// resolve support
+// tts queue - convert audio to text one by one
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async function _resolve_queue() {
-	while(true) {
-		if(!this._queue.length) return
-		const blob = this._queue[0]
-		const interrupt = blob.breath.interrupt
+async function resolve_one(breath,handler,sys) {
 
-		const time1 = performance.now()
+	const interrupt = breath.interrupt
+	if(interrupt && handler._latest_interrupt > interrupt) return
 
-		// process tts chunk
-		const results = await perform_tts(blob.breath)
+	const results = await perform_tts(breath,handler)
+	if(!results || !results.data) return
+	if(interrupt && handler._latest_interrupt > interrupt) return
 
-		// interrupted? is current work obsolete? check after the delay abouve
-		if(interrupt && this._last_interrupt > interrupt) {
-			console.log("tts flushing 0",this._last_interrupt,interrupt)
-			this._queue = []
-			return
-		}
+	const whisper = await perform_stt(handler,results.data)
+	if(interrupt && handler._latest_interrupt > interrupt) return
 
-		// data error?
-		if(!results || !results.data) {
-			this._queue_shift()
-			continue
-		}
-
-		const time2 = performance.now()
-
-		// diarization
-		const whisper = await perform_stt(blob.breath.tts,results.data)
-		const time3 = performance.now()
-		//console.log(uuid,'it took',time3-time1,'milliseconds to say',blob,'(',time1,time2,time3,')')
-
-		// interrupted?
-		if(interrupt && this._last_interrupt > interrupt) {
-			console.log("tts flushing!",this._last_interrupt,interrupt)
-			this._queue = []
-			return
-		}
-
-		const final = blob.breath.final ? true : false
-		sys({audio:{data:results.data,whisper,interrupt,final}})
-		this._queue.shift()
-	}
+	const final = breath.final ? true : false
+	sys({audio:{data:results.data,whisper,interrupt,final}})
 }
 
-//
-// resolve
-// @note must not use await else will stall rest of pipeline
-//
+async function resolve_queue(breath,handler,sys) {
+	handler._queue.push(breath)
+	if(handler._queue.length != 1) return
+	while(handler._queue.length) {
+		await resolve_one(handler._queue[0],handler,sys)
+		handler._queue.shift()
+	}
+}
 
 function resolve(blob,sys) {
 
-	// bargein sets the current age limit of valid data; using last valid barge in as a floor
-	if(blob.human && blob.human.bargein) {
-		this._last_interrupt = blob.human.interrupt
-		this._queue = []
+	// ignore?
+	if(!blob || blob.tick || blob.time) return
+
+	// accumulate entities that handle tts as per orbital ecs architecture
+	if(blob.tts && blob.uuid) {
+		const handler = this._handlers[blob.tts.uuid] = blob.tts
+		handler._queue = []
 	}
 
-	// queue breath segments
-	if(blob.breath && blob.breath.breath && blob.breath.breath.length) {
-		this._queue.push(blob)
-		if(this._queue.length === 1) {
-			this._resolve_queue()
-		}
+	// find handler for event - pick first one for now improve later @todo
+	let candidates = Object.values(this._handlers)
+	const handler = candidates.length ? candidates[0] : null
+	if(!handler) return
+
+	// stop handler if there is a bargein
+	if(blob.human && blob.human.bargein) {
+		handler._queue = []
+		handler._latest_interrupt = blob.human.interrupt
 	}
+
+	// ignore?
+	if(!blob.breath || !blob.breath.breath || !blob.breath.breath.length) return
+
+	// resolve - do not await because it will seize up the orbital sys message bus
+	resolve_queue(blob.breath,handler,sys)
 }
 
 export const tts_system = {
+	_handlers: [],
 	uuid,
 	resolve,
-	_queue:[],
-	_resolve_queue,
-	_last_interrupt: 0,
-	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }
