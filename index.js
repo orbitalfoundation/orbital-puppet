@@ -148,7 +148,7 @@ sys([
 
 		// configure llm - mandatory
 		llm: {
-			stream: false,
+			stream: true,
 			messages: [{
 				role: "system",
 				content: `

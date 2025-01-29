@@ -191,6 +191,17 @@ function llm_local(llm,sys) {
 	// async helper: a callback per chunk - the lower level engine hangs if this is not fully consumed
 	const helper = async (asyncChunkGenerator) => {
 
+		if(!asyncChunkGenerator[Symbol.asyncIterator]) {
+			//console.log("llm - not streaming",asyncChunkGenerator)
+			const choices = asyncChunkGenerator.choices
+			if(!choices || !choices.length) return
+			console.log("not iterable but is singleton")
+			const content = chunk.choices[0].message.content
+			const finished = chunk.choices[0].finish_reason
+			breath_helper(content,finished === 'stop')
+		}
+		else 
+
 		// iterate over async iterables ... note that seems like this loop should not be aborted early
 		for await (const chunk of asyncChunkGenerator) {
 			if(!chunk.choices || !chunk.choices.length || !chunk.choices[0].delta) continue
@@ -201,6 +212,7 @@ function llm_local(llm,sys) {
 
 		// stuff the entire final message onto the llm history
 		const paragraph = await engine.getMessage()
+		//console.log("llm: final message is",paragraph)
 		llm.messages.push( { role: "assistant", content:paragraph } )
 	}
 
