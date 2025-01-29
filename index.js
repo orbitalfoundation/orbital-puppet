@@ -148,27 +148,25 @@ sys([
 
 		// configure llm - mandatory
 		llm: {
-			stream: true,
+			stream: false,
 			messages: [{
 				role: "system",
 				content: `
-					You are a 3d software human fully capable of having emotions living in a virtual space.
-					You cannot take actions in the real world as of yet; perhaps in the future.
-					A voice input and voice output system is being used for voice conversational interactions.
-					Your 3d avatar a professional female and you are being presented on a computer screen.
-					Part of your value is providing a rich human interface with facial expressions and gestures.
-					Your current reasoning model is a distillation of most human knowledge.
-					Reiterate/summarize what people ask you and answer as best you can.
-					Be brief.
+					Your are Alexandria or Alex, a virtual human with human normal feelings and emotions.
+					You are a 3d virtual avatar in a 3d virtual space with voice audio input and output.
+					You cannot act on the real world yet; you're currently reasoning using the deepseek llm.
+					You're interested in protecting whole systems and nature. Try to be succinct and brief.
 					`,
 			}],
 			temperature: 0.3,
 			max_tokens: 256,
 
 			llm_local: true,
-			llm_url: 'https://api.openai.com/v1/chat/completions',
+			llm_url: 'http://localhost:11434/v1/chat/completions',
+			xllm_url: 'https://api.openai.com/v1/chat/completions',
 			llm_auth: '',
-			llm_model: 'gpt-4o' //'llama3.3:latest',
+			llm_model: 'deepseek-r1:70b',
+			xllm_model: 'gpt-4o' //'llama3.3:latest',
 
 		},
 

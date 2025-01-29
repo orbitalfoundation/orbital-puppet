@@ -67,6 +67,19 @@ async function load(sys) {
 	}
 }
 
+
+function processThinkBlocks(input) {
+	const thinkBlocks = [];
+	
+	// Use replace with a callback to capture and remove <think> blocks
+	const cleanedResponse = input.replace(/<think>(.*?)<\/think>/gs, (match, content) => {
+	  thinkBlocks.push(content.trim()); // Add the contents of the <think> block to the array
+	  return ""; // Remove the block from the original response
+	});
+  
+	return { cleanedResponse, thinkBlocks };
+  }
+
 function llm_remote(llm,sys) {
 
 	// get the timestamp associated with the current work
@@ -77,8 +90,9 @@ function llm_remote(llm,sys) {
 		model: llm.llm_model || 'gpt-3.5-turbo',
 		messages:llm.messages
 	}
-	if(llm.llm_url && llm.llm_url.includes('openai') == false) {
-		body.question = text
+	if(llm.llm_flowise === true) {
+		body.question = llm.messages[llm.messages.length-1].text
+
 	}
 	body = JSON.stringify(body)
 
@@ -86,7 +100,7 @@ function llm_remote(llm,sys) {
 	const props = {
 		method: 'POST',
 		headers: {
-			'Authorization': `Bearer ${llm.llm_auth||""}`,
+//			'Authorization': `Bearer ${llm.llm_auth||""}`,
 			'Content-Type': 'application/json',
 		},
 		body
@@ -116,7 +130,14 @@ function llm_remote(llm,sys) {
 					sentence = json.text
 				}
 				if(sentence) {
-					const fragments = sentence.split(/[.!?]|,/);
+
+// print deepseek to console
+const { cleanedResponse, thinkBlocks } = processThinkBlocks(sentence);
+if(thinkBlocks.length) {
+	sys({status:{text:thinkBlocks.join(' ')}})	
+}
+
+					const fragments = cleanedResponse.split(/[.!?]|,/);
 					fragments.forEach(breath => {
 						sys({breath:{breath,ready:true,final:true,interrupt}})
 					})

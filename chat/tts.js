@@ -161,6 +161,8 @@ const PER_DEVICE_CONFIG = {
     },
 };
 
+// @todo detect if mobile and remove webgpu 
+
 /**
  * This class uses the Singleton pattern to ensure that only one instance of the model is loaded.
  */

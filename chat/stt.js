@@ -1,8 +1,6 @@
 
 const uuid = 'stt_system'
 
-//import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/+esm";
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // xenova stt whisper - https://huggingface.co/spaces/Xenova/whisper-web
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +29,7 @@ function mobileTabletCheck() {
 }
 
 const isMobileOrTablet = mobileTabletCheck();
+console.log("stt is mobile",isMobileOrTablet)
 
 const DEFAULTS = {
 	SAMPLING_RATE: 16000,
@@ -231,7 +230,6 @@ const worker = new Worker(URL.createObjectURL(new Blob([xenovaWorker],{type:'tex
 //const worker = new Worker(new URL("./stt-xenova-worker.js", import.meta.url), { type: "module" });
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// https://github.com/ricky0123/vad - voice activity detector - used to pluck out chunks of voice from microphone
 // has built in echo cancellation
 // system voice recognition doesn't participate in audio echo cancellation - it is pretty broken in other ways also
 // @todo for code clarity this actually could be a class - it has some declarations associated with it
@@ -281,7 +279,7 @@ async function configure(state,sys) {
 
 	const stt_helper = (event) => {
 		if(!event.data) return
-	    switch(event.data.status) {
+		switch(event.data.status) {
 			default:
 			case 'initiate':
 			case 'download':
@@ -293,42 +291,40 @@ async function configure(state,sys) {
 				return
 			case 'complete':
 				// fall thru
-	    }
+		}
 
 		const final = event.data.status === 'complete'
 
 		let text = final ? event.data.data.text : event.data.data[0]
 		if(text && typeof text === 'string') text = text.trim(); else text = ""
 
-	    const comment = final ? `STT final: ${text}` : `STT in-progress: ${text}`
+		const comment = final ? `STT final: ${text}` : `STT in-progress: ${text}`
 
 		// publish completed audio
+		console.log("stt: stt done text was",text)
 		publish_helper({text,final,comment})
 	}
 
 	worker.addEventListener("message", stt_helper )
 
-	//
-	// load ricky's vad system like so for now
-	// @todo newer revs of this engine do not work for some reason
-	//
+	// microsofts onnxwasm thingie
+	const onnxWASMBasePath = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/"
+	await new Promise((resolve, reject) => {
+		const script = document.createElement('script');
+		script.src = `${onnxWASMBasePath}ort.js`;
+		script.onload = resolve;
+		script.onerror = reject;
+		document.head.appendChild(script);
+	});
 
-    await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-//        script.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js";
-        script.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.js";
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-
-    await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/bundle.min.js";
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
+	// https://github.com/ricky0123/vad
+	await new Promise((resolve, reject) => {
+		const script = document.createElement('script');
+		script.src = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/bundle.min.js";
+		script.onload = resolve;
+		script.onerror = reject;
+		document.head.appendChild(script);
+	});
 
 	//
 	// a helper for voice activity detector completion
@@ -364,18 +360,20 @@ async function configure(state,sys) {
 
 	try {
 		state.vad = await globalThis.vad.MicVAD.new({
+			onnxWASMBasePath,
 			positiveSpeechThreshold:state.threshold || 0.8,
 			minSpeechFrames: 5,
 			preSpeechPadFrames: 10,
 			model: "v5",
 			onFrameProcessed: (args) => {
-				// console.log("Speech frame data",args)
+				//console.log("Speech frame data",args)
 				vad_helper(args,null)
 			},
 			onSpeechStart: (args) => {
-				// console.log("Speech start detected",args)
+				//console.log("Speech start detected",args)
 			},
 			onSpeechEnd: (audio) => {
+				console.log("stt: voice activity audio done - now passing to stt",audio ? true: false)
 				vad_helper(null,audio)
 			}
 		})
@@ -413,5 +411,6 @@ export const stt_system = {
 		if(!blob.stt) return
 		Object.assign(this._state,blob.stt)
 		configure(this._state,sys)
+		console.log("stt starting")
 	}
 }
