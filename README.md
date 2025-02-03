@@ -1,8 +1,14 @@
 # Orbital Puppet
 
-A 'no strings attached' voice-to-voice conversational 3d puppet with rigged face visemes for the browser.
+A voice-to-voice conversational llm driven 3d puppet.
+
+Can talk to remote endpoints such as ollama or openai for llm and tts - also has a 'no-strings-attached' mode where everything is local (although this tends to crash on mobile).
+
+## Running
 
 See a demo at https://orbitalfoundation.github.io/orbital-puppet/
+
+Or fetch the repo and run a server in the folder such as 'node tiny-server' over the index.html. For local testing set this flag chrome://flags/#unsafely-treat-insecure-origin-as-secure .
 
 ## Why have embodied puppets?
 
@@ -55,12 +61,6 @@ The design consists of several independent pieces wired together using the orbit
 - may eventually switch to a trained neural network for audio to visemes.
 
 6) AUDIO - a standalone component that publishes audio
-
-The pipeline routes traffic from end to end:
-
-	STT -> LLM -> TTS -> PUPPET -> AUDIO
-
-STT can produce 'barge in' events which abort whatever downstream handlers are doing.
 
 ```
 

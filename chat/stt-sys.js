@@ -1,10 +1,6 @@
 
 const uuid = 'stt-sys-system'
 
-///
-/// built in voice recognition - a singleton
-///
-
 const voicesys = {
 
 	recognizer: null,
@@ -24,9 +20,9 @@ const voicesys = {
 			if(this.recognizer.active) return
 			try {
 				this.recognizer.start()
-				console.log(uuid,"recognizer start")
+				//console.log(uuid,"recognizer start")
 			} catch(err) {
-				console.log(uuid,"recognizer started but with error")
+				//console.log(uuid,"recognizer started but with error")
 			}
 			this.recognizer.active = true
 		}
@@ -34,19 +30,26 @@ const voicesys = {
 		this.recognizer.stop2 = ()=>{
 			if(!this.recognizer.active) return
 			try {
-				this.recognizer.abort()
-				console.log(uuid,"recognizer stopped")
+				this.recognizer.stop() // abort() seems to misbehave sadly
+				//console.log(uuid,"recognizer stopped")
 			} catch(err) {
-				console.log(uuid,"recognizer stopped but with error")
+				//console.log(uuid,"recognizer stopped but with error")
 			}
 			this.recognizer.active = false
 		}
 
-		// stop listening on an error
-		this.recognizer.onerror = (event) => {
-			console.error(uuid,'speech recognition error', event.error);
-			this.setAllowed(false)
+		this.recognizer.kick = (event)=> {
+			if(event) {
+				// the speech system 'times out'
+				//console.error(uuid,'speech recognition error', event.error);
+			}
+			// calling abort() seems to leave the engine in a weird half state
+			//this.recognizer.abort()
+			this.recognizer.stop()
+			setTimeout(()=>{ this.recognizer.start() },200)
 		}
+
+		this.recognizer.onerror = this.recognizer.kick
 
 		let rcounter = 1
 		let bcounter = 1
@@ -59,12 +62,14 @@ const voicesys = {
 				const confidence = data[0].confidence
 				const final = data.isFinal
 				const comment = `User vocalization ${bcounter} final ${final}`
+
 				const blob = {
-					human:{
+					perform:{
 						text: text.trim(),
-						timestamp: performance.now(),
+						interrupt: performance.now(),
 						confidence,
 						spoken:true,
+						human:true,
 						comment,
 						rcounter,bcounter,
 						final,
@@ -79,7 +84,7 @@ const voicesys = {
 				} else {
 					rcounter++
 					bcounter=1
-					this.setAllowed(false)
+					this.recognizer.kick()
 				}
 			}
 		}
@@ -103,38 +108,28 @@ const voicesys = {
 
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
-/// stt using built in detection
-///	- ignores echo cancellation so it hears the local speech produced by this app, not just the microphone
-///	- has lots of weird problems such as stop start
-///	- looks like it is just not really usable in this scenario
+/// stt using browser built in capabilities
+///		- pretty broken generally; the people working on browser libs simply are not doing a good job here
+///		- doesn't support audio echo cancellation even though webrtc supports it
+///		- therefore listening to human voice must be explicitly disabled while other audio is playing
+///		- has some hiccups around being stopped or started; is overly pendantic about starting twice
+///		- we don't get any timing data even though it must know timing internally of utterance
+///		- always force requires user interaction with screen before microphone can be turned on unlike other uses of microphone
+///		- times out and must be reset every few seconds of silence
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function resolve(blob) {
 
-	// if speakers are truly done then also listen - @todo this feels a bit messy
-	if(blob.speakers_done && blob.speakers_done.final) {
-		//console.log(uuid,"speaking is done so listen now",blob)
-		voicesys.setAllowed(true)		
+	if(blob.config && blob.config.hasOwnProperty('noisy')) {
+		//console.log("system stt speaker status",blob.config.noisy)
+		voicesys.setAllowed(blob.config.noisy ? false : true )
 	}
 
-	// its possible to discern if it is a good time to listen by watching general barge in traffic
-	if(blob.human && blob.human.bargein) {
-		//console.log(uuid,"barge in to listen - may lose a word")
-		voicesys.setAllowed(true)
-	}
-
-	// an external caller may advise us when there are no other sounds being played
-	if(blob.stt && blob.stt.hasOwnProperty('allowed')) {
-		voicesys.setAllowed(blob.stt.allowed?true:false)
-	}
-
-	// an external caller has to advise if the user has clicked a button to allow built in stt
-	if(blob.stt && blob.stt.hasOwnProperty('desired')) {
-		voicesys.setDesired(blob.stt.desired?true:false)
+	if(blob.config && blob.config.hasOwnProperty('microphone')) {
+		voicesys.setDesired(blob.config.microphone ? true : false )
 	}
 
 }
@@ -142,7 +137,6 @@ function resolve(blob) {
 export const stt_sys_system = {
 	uuid,
 	resolve,
-	//singleton: true // an idea to distinguish systems from things that get multiply instanced @todo
 }
 
 

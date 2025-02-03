@@ -23,6 +23,8 @@ const MIN_BREATH_LENGTH = 20
 let engine = null
 let loading = false
 let ready = false
+let rcounter = 1000
+let bcounter = 0
 
 // worker - as a string because dynamic imports are a hassle with rollup/vite
 const workerString = `
@@ -100,10 +102,14 @@ function llm_remote(llm,sys) {
 	const props = {
 		method: 'POST',
 		headers: {
-//			'Authorization': `Bearer ${llm.llm_auth||""}`,
 			'Content-Type': 'application/json',
+//	illegal cors error in header allow		'Last-Interrupt': interrupt,
 		},
 		body
+	}
+
+	if(llm.llm_auth && llm.llm_auth.length) {
+		props.headers.Authorization = `Bearer ${llm.llm_auth}`
 	}
 
 	// fetch llm response - this must not block so do not await
@@ -112,15 +118,18 @@ function llm_remote(llm,sys) {
 		fetch(llm.llm_url,props).then(response => {
 
 			if(!response.ok) {
-				console.error("llm: reasoning error",response)
+				console.error("llm: reasoning error",llm,response)
 				return
 			}
 
-			// throw away old traffic
+			// throw away old traffic - @todo may have to use the one from props
 			if(interrupt < llm._latest_interrupt) return
 
 			// split up the input into smaller chunks for the tts and send onwards
+			rcounter++
+			bcounter=0
 			response.json().then( json => {
+
 				let sentence = null
 				if(json.choices) {
 					// openai
@@ -139,7 +148,8 @@ if(thinkBlocks.length) {
 
 					const fragments = cleanedResponse.split(/[.!?]|,/);
 					fragments.forEach(breath => {
-						sys({breath:{breath,ready:true,final:true,interrupt}})
+						sys({perform:{text:breath,breath,ready:true,final:true,interrupt,rcounter,bcounter}})
+						bcounter++
 					})
 				}
 			})
@@ -157,6 +167,8 @@ function llm_local(llm,sys) {
 
 	// start reasoning locally
 	llm.thinking = true
+	rcounter++
+	bcounter = 0
 
 	// helper: publish each breath collection of words as it becomes long enough for tts to bother with it
 	let breath = ''
@@ -170,7 +182,7 @@ function llm_local(llm,sys) {
 		if(!fragment || !fragment.length || finished) {
 			if(breath.length) {
 				const final = true
-				sys({breath:{breath,ready,final,interrupt}})
+				sys({perform:{text:breath,breath,ready,final,interrupt}})
 				breath = ''
 			}
 			return
@@ -183,8 +195,9 @@ function llm_local(llm,sys) {
 			const i = match[0].length
 			breath += fragment.slice(0,i)
 			const final = false
-			sys({breath:{breath,ready,final,interrupt}})
+			sys({perform:{text:breath,breath,ready,final,interrupt,rcounter,bcounter}})
 			breath = fragment.slice(i)
+			bcounter++
 		}
 	}
 
@@ -192,12 +205,10 @@ function llm_local(llm,sys) {
 	const helper = async (asyncChunkGenerator) => {
 
 		if(!asyncChunkGenerator[Symbol.asyncIterator]) {
-			//console.log("llm - not streaming",asyncChunkGenerator)
 			const choices = asyncChunkGenerator.choices
 			if(!choices || !choices.length) return
-			console.log("not iterable but is singleton")
-			const content = chunk.choices[0].message.content
-			const finished = chunk.choices[0].finish_reason
+			const content = choices[0].message.content
+			const finished = choices[0].finish_reason
 			breath_helper(content,finished === 'stop')
 		}
 		else 
@@ -231,9 +242,17 @@ async function resolve(blob,sys) {
 	if(blob.llm && blob.uuid) {
 		llm_entities[blob.uuid] = blob
 	}
-	
-	// ignore if not a request from a human
-	if(!blob.human) return
+
+	// override settings?
+	if(blob.config && blob.config.hasOwnProperty('llm_local')) {
+		llm.llm_local = blob.config.llm_local ? true : false
+	}
+
+	// else ignore if not a request from a human
+	if(!blob.perform || blob.perform.human !== true) return
+
+	// ignore if no barge in set - callers must set this
+	if(!blob.perform.bargein) return
 
 	// decide which llm to talk to
 	let candidates = Object.values(llm_entities)
@@ -244,38 +263,30 @@ async function resolve(blob,sys) {
 	}	
 	const llm = entity.llm
 
-	// override settings?
-	if(blob.human.hasOwnProperty('llm_local')) {
-		llm.llm_local = blob.human.llm_local ? true : false
-	}
-
-	// ignore if no barge in set - callers must set this
-	if(!blob.human.bargein) return
-
-	// try to stop any local reasoning; otherwise extra computation is done that is thrown away later
+	// stop local reasoning
 	if(llm.thinking && engine && engine.interruptGenerate) {
 		engine.interruptGenerate()
 		llm.thinking = false
 	}
 
-	// load local llm? (throws away requests if it is not ready) - ok to hit the load() endpoint over and over
+	// late load llm - don't do this early since it crashes mobile @todo improve
 	if(llm.llm_local && !ready) {
 		load(sys)
 		return
 	}
 
-	// only handle final utterances - callers must set this
-	if(!blob.human.final) return
+	// only reason about final utterances - callers must set final
+	if(!blob.perform.final) return
 
-	// only handle valid text - callers must set text
-	const text = blob.human.text
+	// only reason about valid text - callers must set text
+	const text = blob.perform.text
 	if(!text || !text.length) return
 
-	// remember user utterance as part of an ongoing session durable conversation
+	// remember human utterance as part of an ongoing session durable conversation
 	llm.messages.push( { role: "user", content:text } )
 
-	// update the latest interrupt - important for throwing away obsolete work
-	llm._latest_interrupt = blob.human.interrupt
+	// update the latest interrupt - important for throwing away obsolete requests
+	llm._latest_interrupt = blob.perform.interrupt
 
 	// do work
 	llm.llm_local ? llm_local(llm,sys) : llm_remote(llm,sys)

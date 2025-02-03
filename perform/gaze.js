@@ -48,12 +48,12 @@ export function gaze(volume,delay=-1,duration=-1,randomness=0) {
 
 export function gaze_update(volume,time) {
 
-	// hack
+	// super hack @todo volume should inject the camera into the scene please!
 	let camera = null
 	if(volume.scene) camera = volume.scene.camera
 	else if(volume.node && volume.node.parent) camera = volume.node.parent.children[0]
 	if(!camera) return
-	
+
 	if(!volume.node || !volume.head) return
 	const body = volume.node
 	const head = volume.head

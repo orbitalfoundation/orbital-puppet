@@ -36,6 +36,12 @@ html, body {
 	overflow: hidden; /* Prevent content overflow */
 }
 
+@media only screen and (hover: none) and (pointer: coarse){
+    .PuppetContainer {
+        height: 90vh;
+    }
+}
+
 .PuppetMain {
 	flex: 1; /* Occupy remaining space */
 	display: flex;

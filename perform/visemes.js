@@ -6,6 +6,7 @@ export function visemes_sequence(volume,whisper,time) {
 	time = performance.now() // for now get it ourselves
 
 	if(!whisper) {
+		console.warn("puppet - no whisper data") // @todo compute a different way
 		return []
 	}
 
@@ -100,6 +101,9 @@ export function	visemes_update(volume,time) {
 export function visemes_to_rig(volume,time,amplify=1.0) {
 	if(!volume.targets) return
 
+	// test to reduce work
+	if(!volume.dirty) volume.dirty = {}
+
 	Object.entries(volume.targets).forEach(([k,v])=>{
 
 		// linear global fader - useful for returning to a neutral pose gracefully - @note this is just an idea being tried out may deprecate
@@ -107,10 +111,8 @@ export function visemes_to_rig(volume,time,amplify=1.0) {
 			v = volume.targets[k] = v*amplify
 		}
 
-		// touch only dirty targets
+		// touch only dirty targets - a test optimization to reduce banging on animation system
 		if(v === volume.dirty[k]) return
-
-		// mark as clean
 		volume.dirty[k]=v
 
 		// vrms are already correctly mapped and also use english rather than a dictionary lookoup; so set and return

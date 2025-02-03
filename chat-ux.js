@@ -2,14 +2,14 @@
 let rcounter = 1000
 let typing = 0
 
-let microphone = true
+let microphone = false
 let llm_local = true
 let bargein = true
 let autosubmit = true
 let showagent = true
 
 //
-// paint text
+// paint text to user screen
 //
 
 function textToChatWindow(text,isUser=true) {
@@ -22,25 +22,21 @@ function textToChatWindow(text,isUser=true) {
 }
 
 //
-// deal with user hitting 'submit' button
+// deal with user hitting submit
 //
 
 PuppetControlSubmit.onclick = () => {
-	// get text if any
 	const text = PuppetChatInputTextArea.value.trim()
-	// clear input
 	PuppetChatInputTextArea.value = ''
-	// clear typing check
 	typing = 0
-	// print local text if any
 	textToChatWindow(text,true)
-	// publish to other listeners outside of this scope - empty text is treated as a barge in
 	sys({
-		human:{
+		perform:{
 			text,
 			confidence:1,
 			spoken:false,
 			final:true,
+			human:true,
 			interrupt : performance.now(),
 			rcounter,
 			bcounter:1,
@@ -55,45 +51,43 @@ PuppetControlSubmit.onclick = () => {
 //
 
 PuppetChatInputTextArea.onkeydown = (event) => {
-	// get user input
 	const text = PuppetChatInputTextArea.value.trim()
-	// in general disable speaking from overriding text input - @todo this is not being set in stt
+	// in general disable speaking from overriding text input
 	typing = text && text.length ? true : false
-	// ignore incomplete input
 	if (event.key !== 'Enter' || event.shiftKey || event.altKey) return
 	// discard this event only so that it does not stuff a cr into the output
 	event.preventDefault()
-	// note that empty text can be sent (forces a barge in that stops the bot)
+	// note that it is totally ok to send an empty line of text - acts as a barge in
 	PuppetControlSubmit.onclick()
 }
 
 PuppetControlMicrophone.onclick = (e) => {
 	microphone = PuppetControlMicrophone.classList.toggle('active') ? true : false
-	PuppetMicrophonePanel.style.display = microphone ? 'block' : 'none'
-	sys({stt:{microphone}})
+	//PuppetMicrophonePanel.style.display = microphone ? 'block' : 'none'
 	textToChatWindow(`Setting microphone to ${microphone ? 'on' : 'off'}`,false)
+	sys({config:{microphone}})
 }
 
 PuppetControlLocal.onclick = (e) => {
 	llm_local = PuppetControlLocal.classList.toggle('active') ? true : false
-	sys({human:{llm_local}})
 	textToChatWindow(`Setting reasoning to ${llm_local ? 'local' : 'remote'}`,false)
+	sys({config:{llm_local}})
 }
 
 PuppetControlBarge.onclick = (e) => {
 	bargein = PuppetControlBarge.classList.toggle('active') ? true : false
-	sys({stt:{bargein}})
 	textToChatWindow(`Setting bargein to ${bargein ? 'on' : 'off'}`,false)
+	sys({config:{bargein}})
 }
 
 PuppetControlAuto.onclick = (e) => {
 	autosubmit = PuppetControlAuto.classList.toggle('active') ? true : false
-	sys({stt:{autosubmit}})
 	textToChatWindow(`Setting autosubmit to ${autosubmit ? 'on' : 'off'}`,false)
+	sys({config:{autosubmit}})
 }
 
 PuppetControlAgent.onclick = (e) => {
-	showagent = PuppetControlAgent.classList.toggle('active');
+	showagent = PuppetControlAgent.classList.toggle('active')
 	document.querySelectorAll('.PuppetMainRight').forEach(elem=>{
 		elem.style.display = showagent  ? 'block' : 'none'
 	})
@@ -108,48 +102,52 @@ function resolve(blob) {
 	// ignore
 	if(!blob || blob.time || blob.tick) return
 
-	// intercept spoken traffic
-	if(blob.human && blob.human.spoken) {
-		// by convention nobody wants typed text to be erased by spoken text
-		if(typing) {
-			textToChatWindow(`Blocking spoken utterance while typing (${blob.human.text})`,true)
-			return { force_abort_sys: true }
+	// intercept spoken traffic by human only
+	if(blob.perform && blob.perform.spoken && blob.perform.human === true) {
+
+		const text = blob.perform.text
+
+		if(text && text.length) {
+
+			// disallow spoken text over typed text
+			if(typing) {
+				textToChatWindow(`Blocking spoken utterance while typing (${text})`,true)
+				return { force_abort_sys: true }
+			}
+
+			// special case for 'stop'
+			if(text.startsWith('stop')) {
+				blob.perform.final = false
+			}
+
+			// display
+			if(blob.perform.final && autosubmit) {
+				PuppetChatInputTextArea.value = ''
+				textToChatWindow(text,true)
+			} else {
+				PuppetChatInputTextArea.value = text
+			}
 		}
-		// if barge in is not enabled then disallow bargin
-		if(!blob.human.final && !bargein) {
+
+		// bargein?
+		if(!blob.perform.final && !bargein) {
 			console.log("chat - blocking bargein")
-			PuppetChatInputTextArea.value = blob.human.text
 			return { force_abort_sys: true }
 		}
-		// it is nice to be able to disable auto submit of final spoken utterances especially in noisy spaces
-		if(blob.human.final && !autosubmit) {
+
+		// abort autosubmit?
+		if(blob.perform.final && !autosubmit) {
 			console.log("chat - blocking autosubmit")
-			PuppetChatInputTextArea.value = blob.human.text
 			return { force_abort_sys: true }
-		}
-
-		// for now let's treat 'stop' or 'stop please' or 'please stop' as just barge in not final
-		if(blob.human.text.startsWith('stop')) {
-			blob.human.final = false
-		}
-
-		// generally speaking final spoken text is allowed onwards; and also append it to chat history
-		if(blob.human.final) {
-			PuppetChatInputTextArea.value = ''
-			textToChatWindow(blob.human.text,true)
-		}
-		// non final spoken utterances can be pasted to the input window - but don't set the 'typing' count
-		else {
-			PuppetChatInputTextArea.value = blob.human.text
 		}
 	}
 
 	// paste ai text to the chat window
-	if(blob.breath) {
-		textToChatWindow(blob.breath.breath,false)
+	if(blob.perform && blob.perform.final && !blob.perform.human && !blob.perform.audio) {
+		textToChatWindow(blob.perform.text,false)
 	}
 
-	// print status messages
+	// print any status messages
 	if(blob.status) {
 		textToChatWindow(blob.status.text,false)
 	}

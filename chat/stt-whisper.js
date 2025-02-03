@@ -1,9 +1,9 @@
 
-const uuid = 'stt_system'
+const uuid = 'whisper_system'
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// xenova stt whisper - https://huggingface.co/spaces/Xenova/whisper-web
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// xenova whisper - https://huggingface.co/spaces/Xenova/whisper-web
+//
 
 function mobileTabletCheck() {
 	// https://stackoverflow.com/questions/11381673/detecting-a-mobile-browser
@@ -29,7 +29,6 @@ function mobileTabletCheck() {
 }
 
 const isMobileOrTablet = mobileTabletCheck();
-console.log("stt is mobile",isMobileOrTablet)
 
 const DEFAULTS = {
 	SAMPLING_RATE: 16000,
@@ -79,8 +78,6 @@ class PipelineFactory {
 self.addEventListener("message", async (event) => {
 	const message = event.data;
 
-	// Do some work...
-	// TODO use message data
 	let transcript = await transcribe(
 		message.audio,
 		message.model,
@@ -91,11 +88,14 @@ self.addEventListener("message", async (event) => {
 	);
 	if (transcript === null) return;
 
-	// Send the result back to the main thread
 	self.postMessage({
 		status: "complete",
 		task: "automatic-speech-recognition",
 		data: transcript,
+		interrupt : event.data.interrupt,
+		final: event.data.final,
+		rcounter: event.data.rcounter,
+		bcounter: event.data.bcounter
 	});
 });
 
@@ -227,190 +227,110 @@ const transcribe = async (
 
 const worker = new Worker(URL.createObjectURL(new Blob([xenovaWorker],{type:'text/javascript'})),{type:'module'})
 
-//const worker = new Worker(new URL("./stt-xenova-worker.js", import.meta.url), { type: "module" });
+// looks like the model needs an initial message to warm up
+worker.postMessage({
+	model: DEFAULTS.DEFAULT_MODEL,
+	multilingual: DEFAULTS.DEFAULT_MULTILINGUAL,
+	quantized: DEFAULTS.DEFAULT_QUANTIZED,
+	subtask: DEFAULTS.DEFAULT_SUBTASK,
+	language: DEFAULTS.DEFAULT_LANGUAGE,
+})
+worker.onmessage = (event) => {
+	if(event.data.status !== 'done') return
+	console.log('whisper: fully loaded')
+}
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// has built in echo cancellation
-// system voice recognition doesn't participate in audio echo cancellation - it is pretty broken in other ways also
-// @todo for code clarity this actually could be a class - it has some declarations associated with it
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+function resolve(blob,sys) {
 
-async function configure(state,sys) {
+	if(!blob || blob.time || blob.tick) return
 
-	//
-	// just config if active
-	//
+	if(!blob.perform || !blob.perform.audio || blob.perform.text || !blob.perform.human) return
 
-	if(state.vad) {
-		state.microphone ? state.vad.start() : state.vad.pause()
-		return
-	}
+	// barge in on any incomplete processing - allowing only a single utterance to be evaluated
+	// arguably there could be a mode where all raw utterances are evaluated? @todo
+	const interrupt = this._latest_interrupt = blob.perform.interrupt
 
-	//
-	// a helper for publishing events
-	//
+	// do not convert incomplete utterances for now
+	if(!blob.perform.final)	return
 
-	const publish_helper = (human={}) => {
-	
-		const defaults = {
-			text:"",
-			confidence:1,
-			final:false,
-			spoken:true,
-			interrupt: performance.now(),
-		}
+	const audio = blob.perform.audio
+	const human = blob.perform.human ? true : false
+	const rcounter = blob.perform.rcounter ? blob.perform.rcounter : (this.rcounter++)
+	const bcounter = blob.perform.bcounter ? blob.perform.bcounter : (this.bcounter++)
 
-		// override but include defaults
-		human = Object.assign(defaults,human)
+	worker.postMessage({
+		audio,
+		interrupt,
+		rcounter,
+		bcounter,
+		final: blob.perform.final,
+		model: DEFAULTS.DEFAULT_MODEL,
+		multilingual: DEFAULTS.DEFAULT_MULTILINGUAL,
+		quantized: DEFAULTS.DEFAULT_QUANTIZED,
+		subtask: DEFAULTS.DEFAULT_SUBTASK,
+		language: DEFAULTS.DEFAULT_LANGUAGE,
+	})
 
-		// if bargein enabled then all human voice will interrupt / force stop all downstream effects always
-		if(state.bargein) human.bargein = true
+	worker.onmessage = (event) => {
 
-		// if autosubmit is off then force mark as not 'final' event - although incomplete events are allowed thru
-		if(!state.autosubmit) human.final = false
-
-		// publish - testing out an idea of formal outputs interfaces on components rather than directly to sys()
-		sys({human})
-	}
-
-	//
-	// stt callback
-	//
-
-	const stt_helper = (event) => {
-		if(!event.data) return
+		if(!event || !event.data) return
 		switch(event.data.status) {
 			default:
 			case 'initiate':
 			case 'download':
 			case 'progress':
+				//console.log('whisper: loading ',event.data.progress)
 			case 'done':
+				console.log("whisper: fully loaded")
 				return
 			case 'update':
-				//console.log("stt: whisper update - ignored")
 				return
 			case 'complete':
 				// fall thru
 		}
 
-		const final = event.data.status === 'complete'
+		// throw away old sentences if they were overriden by new events above
+		if(this._latest_interrupt && this._latest_interrupt > event.data.interrupt) {
+			// console.warn('whisper - work obsolete ignoring',this._latest_interrupt,event.data.interrupt)
+			return
+		}
 
-		let text = final ? event.data.data.text : event.data.data[0]
+		// ignore if no text
+		const complete = event.data.status === 'complete'
+		let text = complete ? event.data.data.text : event.data.data[0]
+		if(!text || !text.length) return
 		if(text && typeof text === 'string') text = text.trim(); else text = ""
 
-		const comment = final ? `STT final: ${text}` : `STT in-progress: ${text}`
+		// 'final' as a concept is a function of complete supplied utterance and completely converted
+		const final = event.data.final && complete
 
-		// publish completed audio
-		console.log("stt: stt done text was",text)
-		publish_helper({text,final,comment})
-	}
-
-	worker.addEventListener("message", stt_helper )
-
-	// microsofts onnxwasm thingie
-	const onnxWASMBasePath = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/"
-	await new Promise((resolve, reject) => {
-		const script = document.createElement('script');
-		script.src = `${onnxWASMBasePath}ort.js`;
-		script.onload = resolve;
-		script.onerror = reject;
-		document.head.appendChild(script);
-	});
-
-	// https://github.com/ricky0123/vad
-	await new Promise((resolve, reject) => {
-		const script = document.createElement('script');
-		script.src = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/bundle.min.js";
-		script.onload = resolve;
-		script.onerror = reject;
-		document.head.appendChild(script);
-	});
-
-	//
-	// a helper for voice activity detector completion
-	//
-
-	const vad_helper = (probs=null,audio=null) => {
-
-		// if a probability is supplied and it is not likely speech then return
-		const confidence = probs && probs.isSpeech ? probs.isSpeech : 1
-		if(confidence < (state.threshold || 0.8)) return
-
-		// publish a bargein 
-		publish_helper({confidence})
-
-		// convert the completed audio blob to text using whisper
-		if(audio && !state.system_stt) {
-			worker.postMessage({
-				audio,
-				model: DEFAULTS.DEFAULT_MODEL,
-				multilingual: DEFAULTS.DEFAULT_MULTILINGUAL,
-				quantized: DEFAULTS.DEFAULT_QUANTIZED,
-				subtask: DEFAULTS.DEFAULT_SUBTASK,
-				language: DEFAULTS.DEFAULT_LANGUAGE,
-			})
+		// publish 
+		const perform = {
+			audio,
+			text,
+			confidence:1,
+			spoken:true,
+			human,
+			bargein:true,
+			final,
+			interrupt,
+			rcounter: event.data.rcounter,
+			bcounter: event.data.bcounter
 		}
-	}
 
-	//
-	// start up the vad - this drives the custom stt system
-	// detect barge-in events and final audio and generally driven stt processing
-	// due to the deferred load of the script above a retry strategy is used for loading for now @todo improve
-	//
-
-	try {
-		state.vad = await globalThis.vad.MicVAD.new({
-			onnxWASMBasePath,
-			positiveSpeechThreshold:state.threshold || 0.8,
-			minSpeechFrames: 5,
-			preSpeechPadFrames: 10,
-			model: "v5",
-			onFrameProcessed: (args) => {
-				//console.log("Speech frame data",args)
-				vad_helper(args,null)
-			},
-			onSpeechStart: (args) => {
-				//console.log("Speech start detected",args)
-			},
-			onSpeechEnd: (audio) => {
-				console.log("stt: voice activity audio done - now passing to stt",audio ? true: false)
-				vad_helper(null,audio)
-			}
-		})
-		state.vad.start()
-	} catch(err) {
-		console.error(uuid,err)
+		sys({perform})
 	}
 
 }
 
 ///
-/// speech to text system - there is only one microphone on a computer so there is only one instance of an stt
-///
-/// emits 'human' blobs:
-///
-///		{ human: {
-///			text:'full or partial utterance',
-///			spoken: true,
-///			final:true/false,
-///			interrupt,
-///		} }
+/// whisper - given performance packets with audio will publish a performance packet with text
 ///
 
-export const stt_system = {
-
-	_state: {
-		system_stt: false,
-		microphone: true,
-		bargein: true,
-		autosubmit: true,
-		threshold: 0.8,
-	},
-
-	resolve: function(blob,sys) {
-		if(!blob.stt) return
-		Object.assign(this._state,blob.stt)
-		configure(this._state,sys)
-		console.log("stt starting")
-	}
+export const whisper_system = {
+	uuid,
+	resolve,
+	_rcounter:1000,
+	_bcounter:0
 }
+

@@ -8,24 +8,35 @@ import sys from 'https://cdn.jsdelivr.net/npm/orbital-sys@latest/src/sys.js'
 sys({
 	load:[
 
-		// 3d scene system - observes {volume} components and makes a 3d display on a named div or volume001
+		// 3d scene management - observes {volume} events
 		'https://cdn.jsdelivr.net/npm/orbital-volume/volume.js',
 
-		// puppet speech to text system - publishes new {human} packet including {human.bargein}
-		'here/chat/stt.js',
+		// voice activity detector and stt using whisper with bargein and audio echo cancellation
+		// 'here/chat/vad.js',
+		// 'here/chat/stt-whisper.js',
 
-		// bring in chat ux after stt so that speech packets can be blocked if the user is typing
+		// alternatively a built in stt (doesn't allow bargein or audio echo cancellation)
+		'here/chat/stt-sys.js',
+
+		// user interface - placed here in chain because may block some events
 		'here/chat-ux.js',
 
-		// puppet reasoning system - observes {human} packets including {human.bargein} and may publish global {breath} packets
+		// reason using an llm
 		'here/chat/llm.js',
 
-		// puppet text to speech system - observes {breath} packets and generate {speech} packets - also observes {human.bargein}
+		// text to speech using a wasm based tts and speech diarization and then an audio player
 		'here/chat/tts.js',
+		'here/chat/stt-diarization.js',
+		'here/chat/audio.js',
 
-		// puppet animation system - binds to a {puppet} that references 3d geometry
-		// also observes {audio} packets and animates a specified geometry - also observes {human.bargein}
-		'here/puppet.js'
+		// alternatively a built in text to speech system can be used
+		// 'here/chat/tts-sys.js',
+
+		// puppet performance
+		'here/perform/puppet.js',
+
+		// a fun audio effect
+		'here/audio-effect.js'
 	]
 })
 
@@ -134,39 +145,29 @@ sys([
 		// puppet effects - required if you want to animate this puppet
 		puppet: {},
 
-		// configures stt but note there is only one stt globally not one per puppet
-		stt: {
-			// built-in stt
-			builtin_stt: false,
-			// microphone on or off
-			microphone: true,
-			// barge in allowed - allow spoken aborts (although important for speech to speech it can be overly annoying in noisy environments)
-			bargein: true,
-			// auto-submit complete spoken utterances; a nice feature in voice to voice interactions
-			autosubmit: true,
-		},
-
 		// configure llm - mandatory
 		llm: {
 			stream: true,
 			messages: [{
 				role: "system",
 				content: `
-					Your are Alexandria or Alex, a virtual human with human normal feelings and emotions.
+					You are Alex, a virtual human with feelings and emotions.
 					You are a 3d virtual avatar in a 3d virtual space with voice audio input and output.
-					You cannot act on the real world yet; you're currently reasoning using the deepseek llm.
-					You're interested in protecting whole systems and nature. Try to be succinct and brief.
+					You're currently reasoning using the deepseek llm.
+					Please be brief in your responses, a single sentence is fine.
 					`,
 			}],
 			temperature: 0.3,
 			max_tokens: 256,
 
-			llm_local: true,
+			llm_local: false,
 			llm_url: 'http://localhost:11434/v1/chat/completions',
-			xllm_url: 'https://api.openai.com/v1/chat/completions',
-			llm_auth: '',
-			llm_model: 'deepseek-r1:70b',
-			xllm_model: 'gpt-4o' //'llama3.3:latest',
+			//llm_model: 'deepseek-r1:70b',
+			llm_model: 'llama3.2:latest',
+
+			//llm_url: 'https://api.openai.com/v1/chat/completions',
+			//llm_model: 'gpt-4o',
+			//llm_auth: '',
 
 		},
 
@@ -177,19 +178,28 @@ sys([
 			bearer: '',
 			model: "tts-1",
 			// for openai the voices are alloy, echo, fable, onyx, shimmer, nova - onyx is male
-			// voice: "shimmer",
+			//voice: "shimmer",
 			// local voice for piper - male or female work
 			voice: 'en_US-hfc_female-medium',
 			speed: 1,
 			volume: 1,
 			language: "en",
-			trim: 0,
-
-			// do stt for whisper timings remotely
-			whisper_remote: false,
+			trim: 0
 		},
 
-		// configure audio properties - mandatory
-		audio: {},
+		stt: {
+			remote: false,
+			url: 'https://api.openai.com/v1/audio/speech',
+			bearer: '',
+		},
+
 	},
 ])
+
+
+// @todo could add a timeout feature to sys nodes
+setTimeout( ()=>{
+	const text = "All systems nominal"
+	sys({perform:{text,final:true,human:false,interrupt:performance.now()}})
+},2000)
+
