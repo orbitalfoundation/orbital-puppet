@@ -94,9 +94,10 @@ function llm_remote(llm,sys) {
 	}
 	if(llm.llm_flowise === true) {
 		body.question = llm.messages[llm.messages.length-1].text
-
 	}
 	body = JSON.stringify(body)
+
+console.log("llm - sending datagramp to remote",body)
 
 	// set fetch props
 	const props = {
@@ -138,13 +139,15 @@ function llm_remote(llm,sys) {
 					// some other weird system
 					sentence = json.text
 				}
-				if(sentence) {
+				if(sentence && sentence.length) {
 
-// print deepseek to console
-const { cleanedResponse, thinkBlocks } = processThinkBlocks(sentence);
-if(thinkBlocks.length) {
-	sys({status:{text:thinkBlocks.join(' ')}})	
-}
+					// print deepseek to console
+					const { cleanedResponse, thinkBlocks } = processThinkBlocks(sentence);
+					if(thinkBlocks.length) {
+						sys({status:{text:thinkBlocks.join(' ')}})	
+					}
+					if(!cleanedResponse || !cleanedResponse.length) return
+					llm.messages.push( { role: "assistant", content:cleanedResponse } )
 
 					const fragments = cleanedResponse.split(/[.!?]|,/);
 					fragments.forEach(breath => {
@@ -196,6 +199,7 @@ function llm_local(llm,sys) {
 			breath += fragment.slice(0,i)
 			const final = false
 			sys({perform:{text:breath,breath,ready,final,interrupt,rcounter,bcounter}})
+			console.log("llm - publishing - fragment =",breath,"tim e=",interrupt)
 			breath = fragment.slice(i)
 			bcounter++
 		}
@@ -223,7 +227,6 @@ function llm_local(llm,sys) {
 
 		// stuff the entire final message onto the llm history
 		const paragraph = await engine.getMessage()
-		//console.log("llm: final message is",paragraph)
 		llm.messages.push( { role: "assistant", content:paragraph } )
 	}
 
@@ -289,6 +292,7 @@ async function resolve(blob,sys) {
 	llm._latest_interrupt = blob.perform.interrupt
 
 	// do work
+	console.log("llm - reasoning on input =",text,"time =",blob.perform.interrupt)
 	llm.llm_local ? llm_local(llm,sys) : llm_remote(llm,sys)
 }
 

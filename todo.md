@@ -11,3 +11,6 @@
 	- write a tts-sys module that uses built in voice; this would help mobile not fall over
 
 	- why isn't the initial 'all systems nominal' animating the puppet mouth?
+	- change icons for consistency
+	- do that mobile mode thing
+	

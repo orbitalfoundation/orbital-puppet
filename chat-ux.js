@@ -143,7 +143,7 @@ function resolve(blob) {
 	}
 
 	// paste ai text to the chat window
-	if(blob.perform && blob.perform.final && !blob.perform.human && !blob.perform.audio) {
+	if(blob.perform && !blob.perform.human && !blob.perform.audio) {
 		textToChatWindow(blob.perform.text,false)
 	}
 

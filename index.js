@@ -151,19 +151,19 @@ sys([
 			messages: [{
 				role: "system",
 				content: `
-					You are Alex, a virtual human with feelings and emotions.
-					You are a 3d virtual avatar in a 3d virtual space with voice audio input and output.
-					You're currently reasoning using the deepseek llm.
+					Please take on the role of Alex, a female human librarian at the library of alexandria.
+					You're in a shared virtual space with some patrons and are having a voice based conversation.
 					Please be brief in your responses, a single sentence is fine.
 					`,
 			}],
 			temperature: 0.3,
 			max_tokens: 256,
 
-			llm_local: false,
+			llm_local: true,
 			llm_url: 'http://localhost:11434/v1/chat/completions',
+			llm_model: 'deepseek-r1:7b',
 			//llm_model: 'deepseek-r1:70b',
-			llm_model: 'llama3.2:latest',
+			//llm_model: 'llama3.2:latest',
 
 			//llm_url: 'https://api.openai.com/v1/chat/completions',
 			//llm_model: 'gpt-4o',

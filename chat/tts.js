@@ -153,6 +153,7 @@ async function resolve_one(perform,handler,sys) {
 		rcounter: perform.rcounter || rcounter,
 		bcounter: perform.bcounter || bcounter
 	}})
+	console.log('tts - publishing audio... text =',perform.text,"final =",perform.final,"time =",interrupt)
 }
 
 async function resolve_queue(perform,handler,sys) {

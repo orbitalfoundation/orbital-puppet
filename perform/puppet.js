@@ -34,6 +34,8 @@ function perform(volume,perform) {
 	// @todo turn on the non whisper path
 	volume.sequence = visemes_sequence(volume,perform.whisper)
 
+//	console.log("puppet - performing - text =",perform.text,"time",perform.interrupt,"sequence =",volume.sequence)
+
 	// gaze at player on performances that at are at the start of a sequence
 	const segment = perform.bcounter ? perform.bcounter : 0
 	gaze(volume,-1,-1,segment < 2 ? 0 : 0.5 )
@@ -96,7 +98,6 @@ async function resolve(blob) {
 
 	// start a performance if any
 	if(blob.perform && !blob.perform.human && blob.perform.audio && blob.perform.whisper) {
-		//console.log("puppet - got performance to do",puppet,blob.perform)
 		perform(puppet.volume,blob.perform)
 	}
 
