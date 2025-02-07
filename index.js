@@ -9,7 +9,7 @@ sys({
 	load:[
 
 		// 3d scene management - observes {volume} events
-		'https://cdn.jsdelivr.net/npm/orbital-volume/volume.js',
+		//'https://cdn.jsdelivr.net/npm/orbital-volume/volume.js',
 
 		// voice activity detector and stt using whisper with bargein and audio echo cancellation
 		// 'here/chat/vad.js',
@@ -26,17 +26,21 @@ sys({
 
 		// text to speech using a wasm based tts and speech diarization and then an audio player
 		'here/chat/tts.js',
-		'here/chat/stt-diarization.js',
+//		'here/chat/stt-diarization.js',
 		'here/chat/audio.js',
 
 		// alternatively a built in text to speech system can be used
 		// 'here/chat/tts-sys.js',
 
 		// puppet performance
-		'here/perform/puppet.js',
+//		'here/perform/puppet.js',
 
 		// a fun audio effect
-		'here/audio-effect.js'
+//		'here/audio-effect.js'
+
+		// use pams audio
+		'here/effect.js'
+
 	]
 })
 
@@ -159,9 +163,9 @@ sys([
 			temperature: 0.3,
 			max_tokens: 256,
 
-			llm_local: true,
+			llm_local: false,
 			llm_url: 'http://localhost:11434/v1/chat/completions',
-			llm_model: 'deepseek-r1:7b',
+			llm_model: 'deepseek-r1:14b',
 			//llm_model: 'deepseek-r1:70b',
 			//llm_model: 'llama3.2:latest',
 
