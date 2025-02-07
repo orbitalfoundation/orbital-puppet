@@ -1,3 +1,16 @@
+
+# todo - feb 2025
+
+Generally speaking the lower level sys layer should let me chain systems together - right now because of the lack of this we get packets flowing back through things that shouldn't need to see them.
+
+There also seems to be a bug introduced with the visueme updates.
+
+- i shoudl document this better:
+
+		https://www.youtube.com/watch?v=algmP8MGeL4
+
+- also i think i should show a more vanilla import pttern
+
 # todo jan 19 2025
 
 	- puppet does support llm related physical animations; would be nice to turn this back on
