@@ -159,7 +159,8 @@ sys([
 			temperature: 0.3,
 			max_tokens: 256,
 
-			llm_local: true,
+			llm_local: true, // this is meant to refer to the in memory llm - if you want ollama set this to false
+
 			llm_url: 'http://localhost:11434/v1/chat/completions',
 			llm_model: 'deepseek-r1:7b',
 			//llm_model: 'deepseek-r1:70b',
