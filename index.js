@@ -27,7 +27,7 @@ sys({
 		// text to speech using a wasm based tts and speech diarization and then an audio player
 		'here/chat/tts.js',
 //		'here/chat/stt-diarization.js',
-		'here/chat/audio.js',
+//		'here/chat/audio.js',
 
 		// alternatively a built in text to speech system can be used
 		// 'here/chat/tts-sys.js',
@@ -165,7 +165,7 @@ sys([
 
 			llm_local: false,
 			llm_url: 'http://localhost:11434/v1/chat/completions',
-			llm_model: 'deepseek-r1:14b',
+			llm_model: 'deepseek-r1:7b',
 			//llm_model: 'deepseek-r1:70b',
 			//llm_model: 'llama3.2:latest',
 

@@ -220,9 +220,10 @@ let dataArray = null
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 const dealWithAudio = (audioBuffer) => {
+
     try {
         // Create a source node from the decoded audio
-        const source = context.createBufferSource();
+        const source = audioContext.createBufferSource();
         source.buffer = audioBuffer;
 
         
@@ -231,13 +232,13 @@ const dealWithAudio = (audioBuffer) => {
         analyser.smoothingTimeConstant = 0.7;
 
         const bufferLength = analyser.frequencyBinCount; // This is fftSize/2
-        const dataArray = new Uint8Array(bufferLength);
+        dataArray = new Uint8Array(bufferLength);
 
         source.connect(analyser);
-        analyser.connect(context.destination);
+        analyser.connect(audioContext.destination);
 
         // Resume the audio context (if needed) and start playback
-        context.resume();
+        audioContext.resume();
         source.start();
 
         analyser.getByteFrequencyData(dataArray);
@@ -268,11 +269,14 @@ function resolve(blob,sys) {
 
 console.log("got some data to play in pams system")
 
+    // audiobuffers are kinda dumb
+    const dupe = blob.perform.audio.slice(0);
+
     // this a bridge to the animation system
     // we have to decode the audio and then we let it generate an fft thingie
 
     if(!audioContext) return
-    audioContext.decodeAudioData(blob.perform.audio,dealWithAudio)
+    audioContext.decodeAudioData(dupe,dealWithAudio)
 
 
 }
