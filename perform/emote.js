@@ -15,7 +15,5 @@ export function	emote(volume,emotion) {
 	const fields = animMoods[emotion.toLowerCase()]
 	if(!fields || !fields.baseline) return
 	Object.entries(fields.baseline).forEach(([k,v]) => { volume.targets[k] = v })
-	// hold face for a while as a test @todo this feels a bit artificial
-	volume.relaxation = Math.max( volume.relaxation, performance.now() + 3000 )
 }
 

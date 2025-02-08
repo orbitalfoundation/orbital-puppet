@@ -182,18 +182,6 @@ function speechWorker(audio) {
 
 async function perform_stt_local(arrayBuffer) {
 
-	const whisper = {
-		words: [],
-		wtimes: [],
-		wdurations: [],
-		markers: [],
-		mtimes: []
-	}
-
-	//
-	// extract audio from ArrayBuffer
-	//
-
 	const audioContext = new window.AudioContext({sampleRate: 16000 })
 	let audioData = await audioContext.decodeAudioData(arrayBuffer)
 	let audio
@@ -209,20 +197,9 @@ async function perform_stt_local(arrayBuffer) {
 		audio = audioData.getChannelData(0)
 	}
 
-	//
-	// perform transcription
-	// Add words to the whisperAudio object
-	// @todo the -150 is a hack... it's setting timing for later in pipeline and probably should not be set here
-	//
+	const words = await speechWorker(audio)
 
-	let words = await speechWorker(audio)
-	words.chunks.forEach( x => {
-		whisper.words.push( x.text );
-		whisper.wtimes.push( 1000 * x.timestamp[0] - 150 );
-		whisper.wdurations.push( 1000 * (x.timestamp[1] - x.timestamp[0]) );
-	})
-
-	return whisper
+	return words && words.chunks && words.chunks.length ? words.chunks : null
 }
 
 
@@ -348,33 +325,7 @@ async function perform_stt_remote(config,arrayBuffer) {
 		////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		const json = await response.json()
-
-		if(!json.words || !json.words.length) {
-			console.error("puppet stt - whisper no data")
-			return null
-		}
-
-		const whisperAudio = {
-			words: [],
-			wtimes: [],
-			wdurations: [],
-			markers: [],
-			mtimes: []
-		}
-
-		// Add words to the whisperAudio object
-		// @todo the -150 is a hack... it's setting timing for later in pipeline and probably should not be set here
-
-		json.words.forEach( x => {
-			// @ts-ignore
-			whisperAudio.words.push( x.word );
-			// @ts-ignore
-			whisperAudio.wtimes.push( 1000 * x.start - 150 );
-			// @ts-ignore
-			whisperAudio.wdurations.push( 1000 * (x.end - x.start) );
-		})
-
-		return whisperAudio
+		return json && json.words && json.words.length ? json.words : null
 
 	} catch(err) {
 		console.error("puppet stt - whisper error",err)
@@ -387,11 +338,9 @@ const perform_stt = async (config,arrayBuffer) => {
 	const buffer = arrayBuffer.slice(0)
 	if(!buffer) return
 	if(config && config.remote) {
-		const whisper = await perform_stt_remote(config,buffer)
-		return whisper
+		return await perform_stt_remote(config,buffer)
 	} else {
-		const whisper = await perform_stt_local(buffer)
-		return whisper
+		return await perform_stt_local(buffer)
 	}
 }
 

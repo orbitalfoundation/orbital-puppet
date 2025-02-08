@@ -18,23 +18,24 @@ function rest(volume) {
 	emote(volume,'neutral')
 }
 
-function perform(volume,perform) {
+function perform(volume,perform,time) {
 
 	if(!volume || !perform) return
 
+	// an emotion? @todo may need to give duration - but this may interfere with speech
 	if(perform.emotion) {
 		emote(volume,perform.emotion)
 	}
 
+	// a body action @todo
 	if(perform.action) {
-		// body actions are not enabled @todo
 	}
 
-	// build performance sequence over time - use optional timing data if present
-	// @todo turn on the non whisper path
-	volume.sequence = visemes_sequence(volume,perform.whisper)
+	// rewrite the whisper timing to use current start time
+	volume.sequence = visemes_sequence(volume,perform.whisper,time)
 
-//	console.log("puppet - performing - text =",perform.text,"time",perform.interrupt,"sequence =",volume.sequence)
+	// a test approach: set a time to be completed by
+	volume.relaxation = volume.sequence.length ? volume.sequence[volume.sequence.length-1].ts[1] : 0
 
 	// gaze at player on performances that at are at the start of a sequence
 	const segment = perform.bcounter ? perform.bcounter : 0
@@ -52,13 +53,13 @@ function update(volume,time) {
 	// gaze at player
 	gaze_update(volume,time)
 
-	// an experimental approach for relaxation after effects - may revise
+	// test: relax after a certain time; dampening to rest
 	if(!volume.relaxation || volume.relaxation < time ) {
 		facial_ticks(volume.time)
 		visemes_to_rig(volume,time,0.9)
 	}
 
-	// else actively speaking
+	// actively speaking
 	else {
 		visemes_update(volume,time)
 		visemes_to_rig(volume,time)
@@ -69,10 +70,13 @@ function update(volume,time) {
 
 async function resolve(blob) {
 
+	// use our own timestamp for now
+	const time = performance.now()
+
 	// update existing puppets
 	if(blob.tick) {
 		Object.values(this._puppets).forEach(blob => {
-			update(blob.volume)
+			update(blob.volume,time)
 		})
 		return
 	}
@@ -94,11 +98,13 @@ async function resolve(blob) {
 	// detect barge in traffic and force stop performance
 	if(blob.perform && blob.perform.bargein) {
 		rest(puppet.volume)
+		console.log("puppet relaxing due to bargein")
 	}
 
 	// start a performance if any
-	if(blob.perform && !blob.perform.human && blob.perform.audio && blob.perform.whisper) {
-		perform(puppet.volume,blob.perform)
+	if(blob.puppetsync && !blob.puppetsync.human && blob.puppetsync.audio && blob.puppetsync.whisper) {
+		rest(puppet.volume)
+		perform(puppet.volume,blob.puppetsync,time)
 	}
 
 }

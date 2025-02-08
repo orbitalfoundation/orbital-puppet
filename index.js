@@ -199,7 +199,7 @@ sys([
 
 // @todo could add a timeout feature to sys nodes
 setTimeout( ()=>{
-	const text = "All systems nominal"
+	const text = "All systems nominal - ready to talk"
 	sys({perform:{text,final:true,human:false,interrupt:performance.now()}})
 },2000)
 

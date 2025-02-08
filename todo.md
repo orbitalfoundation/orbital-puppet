@@ -5,11 +5,6 @@ Generally speaking the lower level sys layer should let me chain systems togethe
 
 There also seems to be a bug introduced with the visueme updates.
 
-- i shoudl document this better:
-
-		https://www.youtube.com/watch?v=algmP8MGeL4
-
-- also i think i should show a more vanilla import pttern
 
 # todo jan 19 2025
 

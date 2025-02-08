@@ -19,6 +19,11 @@ async function resolve_queue(perform,handler,sys) {
 		// promisfy sound playback in queued order
 		await new Promise((happy,sad)=>{
 			context.decodeAudioData(perform.audio, (audioBuffer) => {
+
+// test firing a synced packet as a helper for the puppet
+console.log("audio - gonna play buffer, duration =",audioBuffer.duration)
+sys({puppetsync: perform})
+
 				try {
 					let sound = handler._sound = context.createBufferSource()
 					sound.buffer = audioBuffer

@@ -3,8 +3,6 @@ import { lipsyncConvert } from '../talking-heads/lipsync-queue.js'
 
 export function visemes_sequence(volume,whisper,time) {
 
-	time = performance.now() // for now get it ourselves
-
 	if(!whisper) {
 		console.warn("puppet - no whisper data") // @todo compute a different way
 		return []
@@ -13,14 +11,11 @@ export function visemes_sequence(volume,whisper,time) {
 	const o = lipsyncConvert(whisper,"en")
 	const sequence = o && o.anim || []
 
-
-	// test: try relaxation approach to damping the facial performance over time
 	for(const item of sequence) {
 		// @todo remove the fudge factor coming in from Mika's code
 		item.ts[0] += time + 150
 		item.ts[1] += time + 150
 		item.ts[2] += time + 150
-		volume.relaxation = Math.max(volume.relaxation,item.ts[1]) // @todo can migrate out?
 	}
 
 	return sequence
@@ -35,8 +30,6 @@ export function visemes_sequence(volume,whisper,time) {
 //
 
 export function	visemes_update(volume,time) {
-
-	time = performance.now() // @todo revert to supplied args
 
 	const attack = 50
 	const release = 60
@@ -77,7 +70,6 @@ export function	visemes_update(volume,time) {
 	for(const item of volume.sequence) {
 		const begins = item.ts[0]
 		const ends = item.ts[1]
-
 		if(begins > time || ends < time) continue
 		Object.entries(item.vs).forEach( ([k,v]) => {
 			v = v[1]
