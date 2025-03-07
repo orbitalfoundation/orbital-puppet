@@ -1,51 +1,55 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.172.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.172.0/examples/jsm/",
-            "assets/": "./assets/",
-            "here/": "./"
-        }
-    }
-  </script>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <div class="PuppetContainer" id="PuppetContainer">
-    <div class="PuppetMain">
-      <div class="PuppetMainLeft">
-        <div id="PuppetChatHistory"></div>
-      </div>
-      <div class="PuppetMainRight">
-        <div style="width:100%;height:100%" id="volume001"></div>
-        <canvas class="PuppetMicrophonePanel" id="PuppetMicrophonePanel"></canvas>
-    </div>
-    </div>
-    <div class="PuppetBottom">
-            <div class="PuppetChatInput" style="width:100%">
-                <textarea style="width:100%" rows=1 id="PuppetChatInputTextArea" placeholder="Type your message here..."></textarea>
-            </div>
-            <div class="PuppetControl">
-                <div class="PuppetControlLeft">
-                    <button id="PuppetControlMicrophone"><img src="assets/icons/microphone.svg" alt="Microphone" /></button>
-                    <button class="active" id="PuppetControlLocal">☁️</button>
-                    <button class="active" id="PuppetControlBarge"><img src="assets/icons/barge-in.svg" alt="Barge-in" /></button>
-                    <button class="active" id="PuppetControlAuto"><img src="assets/icons/auto-submit.svg" alt="Auto-submit" /></button>
-                    <button class="active" id="PuppetControlAgent"><img src="assets/icons/agent.svg" alt="Agent" /></button>
-                </div>
-                <div class="PuppetControlRight">
-                    <button id="PuppetControlSubmit"><img src="assets/icons/submit.svg" alt="Submit" /></button>
-                </div>
-            </div>
-    </div>
-  </div>
-
-</body>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.148.0/build/three.module.js",
+					"three/addons/": "https://unpkg.com/three@0.148.0/examples/jsm/",
+					"orbital-sys/": "https://cdn.jsdelivr.net/npm/orbital-sys@latest/",
+					"orbital-volume/": "https://cdn.jsdelivr.net/npm/orbital-volume@latest/",
+					"xxorbital-puppet/": "https://cdn.jsdelivr.net/npm/orbital-puppet@1.1.9/",
+					"orbital-puppet/": "./",
+					"assets/": "./assets/",
+					"here/": "./"
+				}
+			}
+		</script>
+        <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.19/dist/bundle.min.js"></script>
+		<link href="https://fonts.googleapis.com/css2?family=Montserrat&family=Open+Sans&display=swap" rel="stylesheet">        
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<div class="PuppetContainer" id="PuppetContainer">
+			<div class="PuppetMain">
+				<div class="PuppetMainLeft">
+					<div id="PuppetChatHistory"></div>
+				</div>
+				<div class="PuppetMainRight">
+					<div style="width:100%;height:100%" id="volume001"></div>
+					<canvas style="display:none" class="PuppetMicrophonePanel" id="PuppetMicrophonePanel"></canvas>
+				</div>
+			</div>
+			<div class="PuppetBottom">
+				<textarea class="PuppetChatInput" style="width:100%" rows=1 id="PuppetChatInputTextArea" placeholder="Type your message here..."></textarea>
+				<div class="PuppetControl">
+					<div class="PuppetControlLeft">
+						<button id="PuppetControlMicrophone"><img src="assets/icons/microphone.svg" alt="Microphone" /></button>
+						<button class="active" id="PuppetControlLocal">☁️</button>
+						<button class="active" id="PuppetControlBarge"><img src="assets/icons/barge-in.svg" alt="Barge-in" /></button>
+						<button class="active" id="PuppetControlAuto"><img src="assets/icons/auto-submit.svg" alt="Auto-submit" /></button>
+						<button class="active" id="PuppetControlAgent"><img src="assets/icons/agent.svg" alt="Agent" /></button>
+					</div>
+					<div class="PuppetControlRight">
+						<button id="PuppetControlSubmit"><img src="assets/icons/submit.svg" alt="Submit" /></button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
 </html>
 
 <script src="index.js" type="module"></script>

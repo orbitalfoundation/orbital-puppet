@@ -1,24 +1,31 @@
 
 # todo - feb 2025
 
-Generally speaking the lower level sys layer should let me chain systems together - right now because of the lack of this we get packets flowing back through things that shouldn't need to see them.
+	- introduce an overlay mode where the puppet is transparent over the web page in a corner as if it was a helper for that page
+	- icons could just use emoji
 
-There also seems to be a bug introduced with the visueme updates.
+	- puppet gaze focus on player is too frequent, and eyes pop a bit too much
+	- puppet body physical animations are still turned off, turn back on
 
+	- mobile improvement
+		- cannot use built in voice out due to a lack of timing information - any way to estimate tts out duration?
+		- tts out could compute visemes from phonemes to eliminate need for whisper (which crashes mobile out)
+		- mobile audio echo cancellation seems to be totally broken
+		- mobile llm is too heavy - crashes
 
-# todo jan 19 2025
+## Refining orbital-sys
 
-	- puppet does support llm related physical animations; would be nice to turn this back on
-	- global pub/sub is way overkill; must wire events more directly to each other to reduce traffic
+The orbital-sys component itself could support more direct chaining, where systems could be wired to each other.
+At the moment the output of any system goes to sys as a whole.
+The chain for each message should be built from specific observers.
+For example we always want to unpack arrays and that is always an early event observer.
+One approach is to leave publishing alone but to refine subscribing:
+```
+	sys({
+		resolve: {
+			tick: {}=>()
+		}
+	})
+```
 
-	- on mobile vob and stt crash (detect and switch to built in voice)
-	- on mobile audio echo cancellation fails in general
-	- on mobile the local llm is crushed flat (replace with a static non llm simple thinker)
-	- on mobile tts/diarization also crushing the system (replace with built in voice)
-
-	- write a tts-sys module that uses built in voice; this would help mobile not fall over
-
-	- why isn't the initial 'all systems nominal' animating the puppet mouth?
-	- change icons for consistency
-	- do that mobile mode thing
-	
+Another option is to directly wire systems to each other, this would reduce the name space collisions also in entity component naming.

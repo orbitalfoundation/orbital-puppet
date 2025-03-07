@@ -1,20 +1,23 @@
 :root {
-	--background-color: #1A1A1A;
-	--card-color: #2A2A2A;
-	--text-color: #F6F6F6;
+    --color-backdrop: #1A1A1A;
+	--color-card: #2A2A2A;
+    --color-card: #095D72;
+    --color-button: #008997;
+    --color-button-active: #00A9A7;
+    --color-button-hover: #00c9c7;
+	--color-text: #F6F6F6;
 	--color-back: #2A2A2A;
 	--color-note: #3A2A2A;
-	--color-gray-2: #4A2A2A;
+    --max-width: 1024px;
 }
 
 @media (prefers-color-scheme: light) {
 	:root {
-		--background-color: #F6F6F6;
-		--card-color: #E0E0E0;
-		--text-color: #1A1A1A;
+		--color-backdrop: #F6F6F6;
+        --color-text: #1A1A1A;
 		--color-back: #EAE0E0;
 		--color-note: #E6E0E0;
-		--color-gray-2: #E4E0E0;
+		--color-button: #E4E0E0;
 	}
 }
 
@@ -23,17 +26,62 @@ html, body {
 	padding: 0;
 	height: 100%;
 	font-family: 'Montserrat', 'Open Sans', sans-serif;
-	background-color: var(--background-color); /* Applied directly */
-	color: var(--text-color); /* Applied directly */
-	overflow: hidden; /* Prevent scrolling */
-	transition: background-color 0.3s, color 0.3s; /* Smooth transition */
+	background-color: var(--color-backdrop);
+	color: var(--color-card);
+	transition: background-color 0.3s, color 0.3s;
+	overflow: hidden;
 }
+
+/***********************************************************/
 
 .PuppetContainer {
 	display: flex;
 	flex-direction: column;
-	height: 100vh; /* Full viewport height */
-	overflow: hidden; /* Prevent content overflow */
+	height: 100vh;
+	overflow: hidden;
+    max-width: 1000px;
+    margin: 0 auto;
+    background-color: var(--color-backdrop);
+    color: var(--color-card);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.PuppetMain {
+	display: flex;
+	flex-direction: row;
+	flex: 1;
+
+	gap: 10px;
+
+    overflow: hidden;
+}
+
+.PuppetMainLeft, .PuppetMainRight {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+
+	background-color: var(--color-card);
+	border-radius: 10px;
+	overflow: hidden;
+}
+
+.PuppetBottom {
+	flex-shrink: 0;
+	background-color: var(--color-card);
+	color: var(--color-text);
+	border-radius: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+@media (max-width: 1000px) {
+	.PuppetMain {
+		flex-direction: column;
+	}
+    .PuppetMainRight {
+        margin-left: 0px;
+    }
 }
 
 @media only screen and (hover: none) and (pointer: coarse){
@@ -42,50 +90,15 @@ html, body {
     }
 }
 
-.PuppetMain {
-	flex: 1; /* Occupy remaining space */
-	display: flex;
-	flex-direction: row; /* Default to horizontal layout */
-	gap: 10px; /* Space between cards */
-	padding: 10px;
-	overflow: hidden; /* Prevent child overflow */
-}
-
-.PuppetMainLeft, .PuppetMainRight {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	background-color: var(--card-color);
-	border-radius: 10px;
-	padding: 15px;
-	overflow: hidden; /* Prevent content overflow */
-}
+/***********************************************************/
 
 #PuppetChatHistory {
 	flex: 1;
-	overflow-y: auto; /* Enable scrolling for overflowed content */
+	overflow-y: auto;
 	padding: 10px;
-	background-color: var(--card-color);
-	color: var(--text-color);
+	background-color: var(--color-card);
+	color: var(--color-text);
 	border-radius: 10px;
-}
-
-.PuppetBottom {
-	height: 100px; /* Fixed height */
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background-color: var(--card-color);
-	color: var(--text-color);
-	border-radius: 10px;
-	margin: 15px;
-}
-
-@media (max-width: 1000px) {
-	.PuppetMain {
-		flex-direction: column; /* Switch to vertical layout */
-	}
 }
 
 .PuppetChatUser {
@@ -104,13 +117,12 @@ html, body {
 	margin: 8px;
 	padding: 0 8px 0 8px;
 	border-radius: 5px;
-	background-color: var(--color-back);
 }
 
 .PuppetChatInput {
 	display: flex;
 	padding: 10px;
-	background-color: var(--color-back);
+	background-color: var(--color-button);
 	border-radius: 5px;
 	box-sizing: border-box;
 }
@@ -123,9 +135,9 @@ html, body {
 	border-style: none;
 	border-color: transparent;
 	outline: none;
-	background-color: var(--color-back);
+	background-color: var(--color-card);
 	filter: brightness(1.2);
-	color: var(--color-white);
+	color: var(--color-text);
 	overflow: auto;
 }
 
@@ -159,15 +171,16 @@ html, body {
 	border: none;
 	border-radius: 5px;
 	cursor: pointer;
-	background-color: var(--color-note);
-	color: var(--color-white);
+    transition: background-color 0.3s;
+	background-color: var(--color-button);
+	color: var(--color-text);
 }
 
 .PuppetControl button.active {
-	background-color: var(--color-back);
+	background-color: var(--color-button-active);
 }
 
 .PuppetControl button:hover {
-	background-color: var(--color-gray-2);
+	background-color: var(--color-button-hover);
 }
 

@@ -102,6 +102,8 @@ function resolve(blob) {
 	// ignore
 	if(!blob || blob.time || blob.tick) return
 
+	// @todo handle .config
+
 	// intercept spoken traffic by human only
 	if(blob.perform && blob.perform.spoken && blob.perform.human === true) {
 

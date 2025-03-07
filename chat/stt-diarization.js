@@ -362,7 +362,7 @@ function resolve(blob,sys) {
 	if(!blob || blob.tick || blob.time) return
 
 	// for now just set config for this here; run stt only one at a time
-	if(blob.stt) this._config = blob.stt
+	if(blob.diarization) this._config = blob.diarization
 	const handler = this
 
 	// stop all if there is a bargein from a human

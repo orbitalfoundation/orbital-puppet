@@ -3,40 +3,40 @@
 // Load the orbital pub/sub service and then load up a few systems that will handle message traffic
 //
 
-import sys from 'https://cdn.jsdelivr.net/npm/orbital-sys@latest/src/sys.js'
+import sys from 'orbital-sys/src/sys.js'
 
 sys({
 	load:[
 
-		// 3d scene management - observes {volume} events
-		'https://cdn.jsdelivr.net/npm/orbital-volume/volume.js',
+		// 3d scene system - observes {volume} components and makes a 3d display on a named div or volume001
+		'orbital-volume/volume.js',
 
 		// voice activity detector and stt using whisper with bargein and audio echo cancellation
 		// 'here/chat/vad.js',
 		// 'here/chat/stt-whisper.js',
 
 		// alternatively a built in stt (doesn't allow bargein or audio echo cancellation)
-		'here/chat/stt-sys.js',
+		'orbital-puppet/chat/stt-sys.js',
 
 		// user interface - placed here in chain because may block some events
-		'here/chat-ux.js',
+		'orbital-puppet/chat-ux.js',
 
 		// reason using an llm
-		'here/chat/llm.js',
+		'orbital-puppet/chat/llm.js',
 
 		// text to speech using a wasm based tts and speech diarization and then an audio player
-		'here/chat/tts.js',
-		'here/chat/stt-diarization.js',
-		'here/chat/audio.js',
+		'orbital-puppet/chat/tts.js',
+		'orbital-puppet/chat/stt-diarization.js',
+		'orbital-puppet/chat/audio.js',
 
-		// alternatively a built in text to speech system can be used
+		// built-in tts has poor results because it doesn't tell us the duration of the audio output
 		// 'here/chat/tts-sys.js',
 
-		// puppet performance
-		'here/perform/puppet.js',
+		// puppet performance - watches for audio packets that are decorated with viseme data
+		'orbital-puppet/perform/puppet.js',
 
 		// a fun audio effect
-		'here/audio-effect.js'
+		// 'orbital-puppet/audio-effect.js'
 	]
 })
 
@@ -123,29 +123,32 @@ sys([
 
 	//
 	// puppet
-	// 		- volume {} component defines the geometry
-	//		- puppet {} component deals with animating the geometry for human faces and bodies
-	//		- llm {} component watches for breath messages and eventually drives the puppet component
 	//
 
 	{
-		// uuid - mandatory 
 		uuid: 'alexandria',
 
-		// 3d geometry
+		// decorate this entity with a 3d geometry
 		volume: {
 			geometry: 'file',
-			url: 'https://models.readyplayer.me/664956c743dbd726eefeb99b.glb?morphTargets=ARKit,Oculus+Visemes,mouthOpen,mouthSmile,eyesClosed,eyesLookUp,eyesLookDown&textureSizeLimit=1024&textureFormat=png',
+			url: 'assets/avatars/rpm-mixamo-t-posed.glb',
 			pose: {
 				position: [0,0,0]
 			},
 			animations: { default: `${import.meta.url}/../assets/animations/unarmed-idle.glb` },
 		},
 
-		// puppet effects - required if you want to animate this puppet
+		// decorate entity with viseme support on the geometry if any
 		puppet: {},
 
-		// configure llm - mandatory
+		// general configuration - stuffed here for now
+		config: {
+			microphone: true,
+			bargein: false,
+			autosubmit: false,
+		},
+
+		// decorate entity with the ability to understand human traffic on the pub/sub network
 		llm: {
 			stream: true,
 			messages: [{
@@ -159,28 +162,20 @@ sys([
 			temperature: 0.3,
 			max_tokens: 256,
 
-			llm_local: true, // this is meant to refer to the in memory llm - if you want ollama set this to false
-
-			llm_url: 'http://localhost:11434/v1/chat/completions',
-			llm_model: 'deepseek-r1:7b',
+			llm_local: true, // set to false to use remote endpoint below
+			//llm_url: 'https://localhost:11434/v1/chat/completions',
+			//llm_auth: '',
+			//llm_model: 'deepseek-r1:7b',
 			//llm_model: 'deepseek-r1:70b',
 			//llm_model: 'llama3.2:latest',
-
 			//llm_url: 'https://api.openai.com/v1/chat/completions',
 			//llm_model: 'gpt-4o',
 			//llm_auth: '',
-
 		},
 
-		// configure tts props - mandatory
+		// for local tts this is a setup using piper - if the 'voice' parameter is set to garbage it will crash
 		tts: {
 			remote: false,
-			url: 'https://api.openai.com/v1/audio/speech',
-			bearer: '',
-			model: "tts-1",
-			// for openai the voices are alloy, echo, fable, onyx, shimmer, nova - onyx is male
-			//voice: "shimmer",
-			// local voice for piper - male or female work
 			voice: 'en_US-hfc_female-medium',
 			speed: 1,
 			volume: 1,
@@ -188,7 +183,21 @@ sys([
 			trim: 0
 		},
 
-		stt: {
+		// for remote tts this would talk to a remote endpoint - turn off the above
+		unused_remote_tts: {
+			url: 'https://api.openai.com/v1/audio/speech',
+			bearer: '',
+			model: "tts-1",
+			// for openai the voices are alloy, echo, fable, onyx, shimmer, nova - onyx is male
+			voice: "shimmer",
+			speed: 1,
+			volume: 1,
+			language: "en",
+			trim: 0
+		},
+
+		// decorate entity with the ability to convert speech output to animated viseme performances
+		diarization: {
 			remote: false,
 			url: 'https://api.openai.com/v1/audio/speech',
 			bearer: '',
@@ -196,11 +205,4 @@ sys([
 
 	},
 ])
-
-
-// @todo could add a timeout feature to sys nodes
-setTimeout( ()=>{
-	const text = "All systems nominal - ready to talk"
-	sys({perform:{text,final:true,human:false,interrupt:performance.now()}})
-},2000)
 

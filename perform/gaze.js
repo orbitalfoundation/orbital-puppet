@@ -4,8 +4,8 @@ import * as THREE from 'three'
 function prep(volume) {
 
 	volume.head = volume.bones["Head"]
-	volume.left_eye = volume.bones["LeftEye"]
-	volume.right_eye = volume.bones["RightEye"]
+	volume.left = volume.bones["LeftEye"]
+	volume.right = volume.bones["RightEye"]
 
 	volume.headDefaultQuaternion = new THREE.Quaternion()
 	volume.headCurrentQuaternion = new THREE.Quaternion()
