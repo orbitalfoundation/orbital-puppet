@@ -1,6 +1,8 @@
 
 # todo - feb 2025
 
+	- have a startup message / some debugging
+
 	- introduce an overlay mode where the puppet is transparent over the web page in a corner as if it was a helper for that page
 	- icons could just use emoji
 

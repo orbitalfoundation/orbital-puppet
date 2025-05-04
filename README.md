@@ -4,6 +4,8 @@ A voice-to-voice conversational llm driven 3d puppet.
 
 Can talk to remote endpoints such as ollama or openai for llm and tts - also has a 'no-strings-attached' mode where everything is local (although this tends to crash on mobile).
 
+![puppet screenshot](screenshot.png?raw=true "puppet")
+
 ## Running
 
 See a demo at https://orbitalfoundation.github.io/orbital-puppet/
