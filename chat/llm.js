@@ -263,13 +263,9 @@ function llm_load(sys) {
 
 async function llm_local(llm,sys) {
 
-	console.log(1)
-
 	if(WEBWORKER_ALLOW) {
 		return llm_local_webworker(llm,sys)
 	}
-
-	console.log(2)
 
 	if(!ready || !engine) return
 	//console.log("llm reasoning",llm.messages)
