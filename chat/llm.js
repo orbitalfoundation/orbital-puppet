@@ -245,6 +245,8 @@ function llm_load(sys) {
 	if(loading) return
 	loading = true
 
+	sys({status:{color:(ready?'ready':'loading'),text:`Loading non webworker model ${selectedModel}`}})
+
 	if(!engine) {
 		const _engine = new webllm.MLCEngine()
 		_engine.setInitProgressCallback(updateEngineInitProgressCallback)
