@@ -3,13 +3,16 @@
 // Load the orbital pub/sub service and then load up a few systems that will handle message traffic
 //
 
-import sys from 'orbital-sys/src/sys.js'
+import { createBus } from '@orbitalfoundation/bus'
 
-sys({
+// one bus for the whole puppet app; services capture it on registration, entities ride it
+const bus = createBus()
+
+await bus.resolve({
 	load:[
 
 		// 3d scene system - observes {volume} components and makes a 3d display on a named div or volume001
-		'orbital-volume/volume.js',
+		'@orbitalfoundation/orbital-volume',
 
 		// voice activity detector and stt using whisper with bargein and audio echo cancellation
 		// 'here/chat/vad.js',
@@ -44,7 +47,7 @@ sys({
 // a 3d scene - these are messages that get piped to the 3d volume service above and rendered as 3d geometry
 //
 
-sys([
+bus.resolve([
 
 	{
 		uuid: "scene001",

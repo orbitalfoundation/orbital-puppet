@@ -1,6 +1,9 @@
 
 const uuid = 'vad_system'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 function loadScript(url) {
 	return new Promise((resolve, reject) => {
 		const script = document.createElement('script')
@@ -51,7 +54,7 @@ function configure(state,sys) {
 			bcounter : state.bcounter,
 			interrupt: performance.now(),
 		}
-		sys({perform})
+		bus.resolve({perform})
 	}
 
 	//
@@ -84,6 +87,7 @@ function configure(state,sys) {
 
 export const vad_system = {
 
+	id: uuid,
 	uuid,
 
 	_state: {
@@ -94,6 +98,7 @@ export const vad_system = {
 	},
 
 	resolve: function(blob,sys) {
+		bus = arguments[1] || bus
 		if(!blob || blob.tick || blob.time) return
 		if(blob.config) {
 			if(blob.config.hasOwnProperty('microphone')) this._state.microphone = blob.config.microphone

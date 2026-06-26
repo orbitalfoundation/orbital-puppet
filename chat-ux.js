@@ -8,6 +8,9 @@ let bargein = true
 let autosubmit = true
 let showagent = true
 
+// the bus, captured from resolve()'s 2nd arg at registration (DOM handlers fire later, after that)
+let bus = null
+
 //
 // paint text to user screen
 //
@@ -30,7 +33,7 @@ PuppetControlSubmit.onclick = () => {
 	PuppetChatInputTextArea.value = ''
 	typing = 0
 	textToChatWindow(text,true)
-	sys({
+	bus.resolve({
 		perform:{
 			text,
 			confidence:1,
@@ -65,25 +68,25 @@ PuppetControlMicrophone.onclick = (e) => {
 	microphone = PuppetControlMicrophone.classList.toggle('active') ? true : false
 	//PuppetMicrophonePanel.style.display = microphone ? 'block' : 'none'
 	textToChatWindow(`Setting microphone to ${microphone ? 'on' : 'off'}`,false)
-	sys({config:{microphone}})
+	bus.resolve({config:{microphone}})
 }
 
 PuppetControlLocal.onclick = (e) => {
 	llm_local = PuppetControlLocal.classList.toggle('active') ? true : false
 	textToChatWindow(`Setting reasoning to ${llm_local ? 'local' : 'remote'}`,false)
-	sys({config:{llm_local}})
+	bus.resolve({config:{llm_local}})
 }
 
 PuppetControlBarge.onclick = (e) => {
 	bargein = PuppetControlBarge.classList.toggle('active') ? true : false
 	textToChatWindow(`Setting bargein to ${bargein ? 'on' : 'off'}`,false)
-	sys({config:{bargein}})
+	bus.resolve({config:{bargein}})
 }
 
 PuppetControlAuto.onclick = (e) => {
 	autosubmit = PuppetControlAuto.classList.toggle('active') ? true : false
 	textToChatWindow(`Setting autosubmit to ${autosubmit ? 'on' : 'off'}`,false)
-	sys({config:{autosubmit}})
+	bus.resolve({config:{autosubmit}})
 }
 
 PuppetControlAgent.onclick = (e) => {
@@ -98,6 +101,7 @@ PuppetControlAgent.onclick = (e) => {
 //
 
 function resolve(blob) {
+	bus = arguments[1] || bus
 
 	// ignore
 	if(!blob || blob.time || blob.tick) return
@@ -156,6 +160,7 @@ function resolve(blob) {
 }
 
 export const chat_system = {
+	id:"chat-handler",
 	uuid:"chat-handler",
 	resolve
 }

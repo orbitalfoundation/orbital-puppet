@@ -1,6 +1,9 @@
 
 const uuid = 'stt-sys-system'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 const voicesys = {
 
 	recognizer: null,
@@ -77,7 +80,7 @@ const voicesys = {
 					}
 				}
 
-				sys(blob)
+				bus.resolve(blob)
 
 				if(!final) {
 					bcounter++
@@ -122,6 +125,7 @@ const voicesys = {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function resolve(blob) {
+	bus = arguments[1] || bus
 
 	if(blob.config && blob.config.hasOwnProperty('noisy')) {
 		//console.log("system stt speaker status",blob.config.noisy)
@@ -135,6 +139,7 @@ function resolve(blob) {
 }
 
 export const stt_sys_system = {
+	id: uuid,
 	uuid,
 	resolve,
 }

@@ -5,6 +5,9 @@
 
 const uuid = 'puppet-system'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 import { blink } from './blink.js'
 import { emote } from './emote.js'
 import { facial_ticks } from './facial-ticks.js'
@@ -69,6 +72,7 @@ function update(volume,time) {
 
 
 async function resolve(blob) {
+	bus = arguments[1] || bus
 
 	// use our own timestamp for now
 	const time = performance.now()
@@ -114,6 +118,7 @@ async function resolve(blob) {
 ///
 
 export const puppet_system = {
+	id: uuid,
 	uuid,
 	resolve,
 	_puppets:{},

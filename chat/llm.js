@@ -1,6 +1,9 @@
 
 const uuid = 'llm_system'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 import * as webllm from "https://esm.run/@mlc-ai/web-llm"
 const selectedModel = "Llama-3.2-1B-Instruct-q4f32_1-MLC"
 
@@ -91,14 +94,14 @@ function llm_remote(llm,sys) {
 					// print deepseek to console
 					const { cleanedResponse, thinkBlocks } = processThinkBlocks(sentence);
 					if(thinkBlocks.length) {
-						sys({status:{text:thinkBlocks.join(' ')}})	
+						bus.resolve({status:{text:thinkBlocks.join(' ')}})	
 					}
 					if(!cleanedResponse || !cleanedResponse.length) return
 					llm.messages.push( { role: "assistant", content:cleanedResponse } )
 
 					const fragments = cleanedResponse.split(/[.!?]|,/);
 					fragments.forEach(breath => {
-						sys({perform:{text:breath,breath,ready:true,final:true,interrupt,rcounter,bcounter}})
+						bus.resolve({perform:{text:breath,breath,ready:true,final:true,interrupt,rcounter,bcounter}})
 						bcounter++
 					})
 				}
@@ -127,16 +130,16 @@ async function llm_load_webworker(sys) {
 
 	try {
 
-		sys({status:{color:(ready?'ready':'loading'),text:`Loading local model ${selectedModel}`}})
+		bus.resolve({status:{color:(ready?'ready':'loading'),text:`Loading local model ${selectedModel}`}})
 
 		const initProgressCallback = (status) => {
-			sys({status:{color:(ready?'ready':'loading'),text:status.text}})
+			bus.resolve({status:{color:(ready?'ready':'loading'),text:status.text}})
 		}
 
 		const completed = (_engine) => {
 			engine = _engine
 			ready = true
-			sys({status:{color:(ready?'ready':'loading'),text:'Ready'}})
+			bus.resolve({status:{color:(ready?'ready':'loading'),text:'Ready'}})
 		}
 
 		// service workers seem to be starved of cpu/gpu
@@ -169,7 +172,7 @@ const breath_helper = (sys,llm,interrupt,fragment=null,finished=false) => {
 	if(!fragment || !fragment.length || finished) {
 		if(breath.length) {
 			const final = true
-			sys({perform:{text:breath,breath,ready,final,interrupt}})
+			bus.resolve({perform:{text:breath,breath,ready,final,interrupt}})
 			breath = ''
 		}
 		return
@@ -182,7 +185,7 @@ const breath_helper = (sys,llm,interrupt,fragment=null,finished=false) => {
 		const i = match[0].length
 		breath += fragment.slice(0,i)
 		const final = false
-		sys({perform:{text:breath,breath,ready,final,interrupt,rcounter,bcounter}})
+		bus.resolve({perform:{text:breath,breath,ready,final,interrupt,rcounter,bcounter}})
 		console.log("llm - publishing - fragment =",breath,"time=",interrupt)
 		breath = fragment.slice(i)
 		bcounter++
@@ -245,7 +248,7 @@ function llm_load(sys) {
 	if(loading) return
 	loading = true
 
-	sys({status:{color:(ready?'ready':'loading'),text:`Loading non webworker model ${selectedModel}`}})
+	bus.resolve({status:{color:(ready?'ready':'loading'),text:`Loading non webworker model ${selectedModel}`}})
 
 	if(!engine) {
 		const _engine = new webllm.MLCEngine()
@@ -255,7 +258,7 @@ function llm_load(sys) {
 			engine = _engine
 			ready = true
 			console.log("llm: ready",engine,ready)
-			sys({status:{color:(ready?'ready':'loading'),text:'Ready'}})
+			bus.resolve({status:{color:(ready?'ready':'loading'),text:'Ready'}})
 		}
 		_engine.reload(selectedModel, config).then(completed)
 		return
@@ -305,6 +308,7 @@ async function llm_local(llm,sys) {
 const llm_entities = {}
 
 async function resolve(blob,sys) {
+	bus = arguments[1] || bus
 
 	// ignore?
 	if(!blob || blob.tick || blob.time) return
@@ -375,6 +379,7 @@ async function resolve(blob,sys) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const llm_system = {
+	id: uuid,
 	uuid,
 	resolve,
 }

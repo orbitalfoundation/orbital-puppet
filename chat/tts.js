@@ -1,6 +1,9 @@
 
 const uuid = 'tts-system'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // tts local wasm worker using vits - slower on older machines
 //
@@ -144,7 +147,7 @@ async function resolve_one(perform,handler,sys) {
 	if(!results || !results.data) return
 	if(interrupt && handler._latest_interrupt > interrupt) return
 	rcounter++
-	sys({perform:{
+	bus.resolve({perform:{
 		text: perform.text,
 		audio:results.data,
 		interrupt,
@@ -166,6 +169,7 @@ async function resolve_queue(perform,handler,sys) {
 }
 
 function resolve(blob,sys) {
+	bus = arguments[1] || bus
 
 	// ignore?
 	if(!blob || blob.tick || blob.time) return
@@ -200,6 +204,7 @@ function resolve(blob,sys) {
 }
 
 export const tts_system = {
+	id: uuid,
 	_handlers: [],
 	uuid,
 	resolve,

@@ -1,6 +1,9 @@
 
 const uuid = 'audio_system'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 let context = null
 
 async function resolve_queue(perform,handler,sys) {
@@ -10,7 +13,7 @@ async function resolve_queue(perform,handler,sys) {
 	handler.queue.push(perform)
 	if(handler.queue.length != 1) return
 
-	sys({config:{noisy:true}})
+	bus.resolve({config:{noisy:true}})
 
 	while(handler.queue.length) {
 
@@ -22,7 +25,7 @@ async function resolve_queue(perform,handler,sys) {
 
 // test firing a synced packet as a helper for the puppet
 console.log("audio - gonna play buffer, duration =",audioBuffer.duration)
-sys({puppetsync: perform})
+bus.resolve({puppetsync: perform})
 
 				try {
 					let sound = handler._sound = context.createBufferSource()
@@ -45,10 +48,11 @@ sys({puppetsync: perform})
 		handler.queue.shift()
 	}
 
-	sys({config:{noisy:false}})					
+	bus.resolve({config:{noisy:false}})					
 }
 
 function resolve(blob,sys) {
+	bus = arguments[1] || bus
 
 	if(!blob || blob.time || blob.tick) return
 
@@ -64,7 +68,7 @@ function resolve(blob,sys) {
 			handler._sound.stop()
 			handler._sound.disconnect()
 			handler._sound = null
-			sys({config:{noisy:false}})
+			bus.resolve({config:{noisy:false}})
 		}
 	}
 
@@ -76,6 +80,7 @@ function resolve(blob,sys) {
 }
 
 export const audio_system = {
+	id: uuid,
 	uuid,
 	resolve,
 	_handlers: { default: { queue: [] } }

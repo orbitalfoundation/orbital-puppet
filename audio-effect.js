@@ -84,6 +84,7 @@ function resolve(blob) {
 }
 
 export const audio_effect_system = {
+  id:"audio_effect_system",
   uuid:"audio_effect_system",
   resolve,
   _canvas:'PuppetMicrophonePanel'

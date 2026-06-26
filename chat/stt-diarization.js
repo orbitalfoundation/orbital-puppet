@@ -1,6 +1,9 @@
 
 const uuid = 'stt-diarization'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // speech diarization local worker - slow on older machines
@@ -351,13 +354,14 @@ async function resolve_queue(perform,handler,sys) {
 		perform = handler._queue[0]
 		perform.whisper = await perform_stt(handler.config,perform.audio)
 		if(handler._latest_interrupt <= perform.interrupt) {
-			sys({perform})
+			bus.resolve({perform})
 		}
 		handler._queue.shift()
 	}
 }
 
 function resolve(blob,sys) {
+	bus = arguments[1] || bus
 
 	if(!blob || blob.tick || blob.time) return
 
@@ -386,6 +390,7 @@ function resolve(blob,sys) {
 
 
 export const whisper_system = {
+	id: uuid,
 	uuid,
 	resolve,
 	_config: { remote: false, url: "" },

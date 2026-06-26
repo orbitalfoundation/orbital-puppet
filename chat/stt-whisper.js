@@ -1,6 +1,9 @@
 
 const uuid = 'whisper_system'
 
+
+// the bus, captured from the second arg of resolve() when this service is registered
+let bus = null
 //
 // xenova whisper - https://huggingface.co/spaces/Xenova/whisper-web
 //
@@ -241,6 +244,7 @@ worker.onmessage = (event) => {
 }
 
 function resolve(blob,sys) {
+	bus = arguments[1] || bus
 
 	if(!blob || blob.time || blob.tick) return
 
@@ -318,7 +322,7 @@ function resolve(blob,sys) {
 			bcounter: event.data.bcounter
 		}
 
-		sys({perform})
+		bus.resolve({perform})
 	}
 
 }
@@ -328,6 +332,7 @@ function resolve(blob,sys) {
 ///
 
 export const whisper_system = {
+	id: uuid,
 	uuid,
 	resolve,
 	_rcounter:1000,
