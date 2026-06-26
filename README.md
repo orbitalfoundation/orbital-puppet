@@ -37,6 +37,21 @@ This is an older project with a lot of accumulated thinking, kept out of this RE
 - [20260625 — bus migration + modernization research & plan](devlog/20260625-bus-migration-and-modernization-research.md) (the move to `@orbitalfoundation/bus`, killing the TTS→STT timing hack via HeadTTS, and the staged plan)
 - [20260626 — implementation: Stage 0 + Stage 1](devlog/20260626-implementation-stage0-1.md) (what actually got built: bus migration, HeadTTS, cleanup, and what's left)
 
+## Credits
+
+The lip-sync and viseme work here stands on the shoulders of **Mika Suominen
+([@met4citizen](https://github.com/met4citizen))**, and this project is grateful for it:
+
+- **[TalkingHead](https://github.com/met4citizen/TalkingHead)** — the phoneme → Oculus-viseme
+  lip-sync approach. The modules under [`talking-heads/`](talking-heads) are derived from his
+  MIT-licensed code (`lipsync-en`, the lipsync queue, anim moods/emojis).
+- **[HeadTTS](https://github.com/met4citizen/HeadTTS)** — the in-browser Kokoro TTS that returns
+  audio together with native Oculus visemes and timing, which this project uses for speech and
+  lip-sync (and which let us delete an entire Whisper-based timing hack).
+
+Thank you, Mika.
+
 ## License
 
 MIT
+
