@@ -85,6 +85,18 @@ a:hover { text-decoration: underline; }
 	border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--color-border));
 }
 
+.HostFigure {
+	margin: 28px 0 8px;
+}
+.HostFigure img {
+	display: block;
+	width: 100%;
+	height: auto;
+	border-radius: 14px;
+	border: 1px solid var(--color-border);
+	box-shadow: 0 12px 34px rgba(0,0,0,0.28);
+}
+
 .HostPage h2 {
 	font-family: 'Montserrat', sans-serif;
 	font-size: 22px; margin: 40px 0 10px;

@@ -23,6 +23,7 @@
     "perform/",
     "talking-heads/",
     "assets/",
-    "README.md"
+    "README.md",
+    "puppet-example.png"
   ]
 }
