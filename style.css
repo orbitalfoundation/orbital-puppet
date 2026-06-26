@@ -1,13 +1,12 @@
 /*
- * Theme: "amethyst" — a violet accent on a neutral slate base.
- * Responsive to the system light/dark preference. Layout is unchanged from before;
- * this is colours + a few polish touches. To recolour the whole UI, change --accent.
+ * Orbital Puppet — "ambassador embedded on an ordinary web page" layout.
+ * Theme "amethyst": a violet accent on a neutral slate base, responsive to system light/dark.
+ * Change --accent to retheme.
  */
 
 :root {
-	--accent:        #7c5cff;   /* the one knob: change this to retheme */
+	--accent:        #7c5cff;
 
-	/* dark is the default; the light overrides are in the media query below */
 	--color-backdrop: #0e0f13;
 	--color-card:     #16181e;
 	--color-back:     #20232c;
@@ -19,7 +18,7 @@
 	--color-button-hover:  #333845;
 	--color-button-active: var(--accent);
 
-	--max-width: 1000px;
+	--ambassador-width: 400px;
 }
 
 @media (prefers-color-scheme: light) {
@@ -41,56 +40,100 @@
 html, body {
 	margin: 0;
 	padding: 0;
-	height: 100%;
-	font-family: 'Montserrat', 'Open Sans', sans-serif;
+	min-height: 100%;
+	font-family: 'Open Sans', 'Montserrat', sans-serif;
 	background-color: var(--color-backdrop);
 	color: var(--color-text);
 	transition: background-color 0.3s, color 0.3s;
-	overflow: hidden;
 }
 
-/***********************************************************/
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-.PuppetContainer {
-	display: flex;
-	flex-direction: column;
-	height: 100vh;
-	overflow: hidden;
-	max-width: var(--max-width);
+/*********************************** the host web page ***********************************/
+
+.HostPage {
+	max-width: 720px;
+	padding: 56px 28px 120px;
 	margin: 0 auto;
-	padding: 10px;
-	box-sizing: border-box;
-	background-color: var(--color-backdrop);
-	color: var(--color-text);
-	transition: background-color 0.3s, color 0.3s;
+	line-height: 1.7;
+}
+@media (min-width: 1024px) {
+	/* leave room for the ambassador on the right and sit the article to its left */
+	.HostPage { margin-right: calc(var(--ambassador-width) + 24px); }
 }
 
-.PuppetMain {
-	display: flex;
-	flex-direction: row;
-	flex: 1;
-	gap: 10px;
-	overflow: hidden;
+.HostEyebrow {
+	font-family: 'Montserrat', sans-serif;
+	font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+	color: var(--accent); margin: 0 0 12px;
+}
+.HostHero h1 {
+	font-family: 'Montserrat', sans-serif;
+	font-size: clamp(30px, 5vw, 46px); line-height: 1.1; margin: 0 0 14px;
+}
+.HostLead { font-size: 19px; color: var(--color-muted); margin: 0 0 8px; }
+
+.HostPage h2 {
+	font-family: 'Montserrat', sans-serif;
+	font-size: 22px; margin: 40px 0 10px;
+}
+.HostPage p { margin: 0 0 14px; }
+
+.HostFoot {
+	margin-top: 56px; padding-top: 18px;
+	border-top: 1px solid var(--color-border);
+	color: var(--color-muted); font-size: 14px;
 }
 
-.PuppetMainLeft, .PuppetMainRight {
-	flex: 1;
+/*********************************** the ambassador overlay ***********************************/
+
+.Ambassador {
+	position: fixed;
+	top: 0; right: 0; bottom: 0;
+	width: var(--ambassador-width);
 	display: flex;
 	flex-direction: column;
-	background-color: var(--color-card);
-	border: 1px solid var(--color-border);
-	border-radius: 12px;
-	overflow: hidden;
+	z-index: 10;
+	pointer-events: none;        /* the page stays interactive; only the chat card grabs input */
 }
 
-.PuppetMainRight { position: relative; } /* anchor the status overlay */
+/* top: the puppet — a transparent 3d view (the page shows through), framed on the upper body */
+.AmbassadorPuppet {
+	position: relative;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+#volume001 { width: 100%; height: 100%; }
 
-/* in-place loading/status indicator over the viewport (model loading, thinking, speaking, ready) */
+/* bottom: the chat card — solid, legible, floats over the page */
+.AmbassadorChat {
+	pointer-events: auto;
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 0 14px 14px;
+	padding: 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-card);
+	background: color-mix(in srgb, var(--color-card) 88%, transparent);
+	backdrop-filter: blur(10px);
+	box-shadow: 0 10px 30px rgba(0,0,0,0.30);
+}
+
+@media (max-width: 1023px) {
+	/* narrow screens: ambassador becomes a bottom panel spanning the width */
+	.Ambassador { width: 100%; top: auto; height: 78vh; }
+	.AmbassadorChat { margin: 0 10px 10px; }
+}
+
+/*********************************** chat + controls (shared components) ***********************************/
+
 .PuppetStatus {
 	position: absolute;
-	top: 10px;
-	left: 10px;
-	right: 10px;
+	top: 12px; left: 12px; right: 12px;
 	z-index: 5;
 	padding: 8px 12px;
 	border-radius: 10px;
@@ -98,74 +141,45 @@ html, body {
 	text-align: center;
 	color: var(--color-text);
 	pointer-events: none;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 	background: var(--color-card);
-	background: color-mix(in srgb, var(--accent) 20%, var(--color-card));
+	background: color-mix(in srgb, var(--accent) 22%, var(--color-card));
 	border: 1px solid var(--accent);
 	box-shadow: 0 4px 14px rgba(0,0,0,0.25);
 	transition: opacity 0.3s;
 }
 .PuppetStatus[hidden] { display: none; }
 
-.PuppetBottom {
-	flex-shrink: 0;
-	background-color: var(--color-card);
-	border: 1px solid var(--color-border);
-	color: var(--color-text);
-	border-radius: 12px;
-	padding: 10px;
-	box-sizing: border-box;
-	margin-top: 10px;
-}
-
-@media (max-width: 1000px) {
-	.PuppetMain { flex-direction: column; }
-	.PuppetMainRight { margin-left: 0px; }
-}
-
-@media only screen and (hover: none) and (pointer: coarse) {
-	.PuppetContainer { height: 90vh; }
-}
-
-/***********************************************************/
-
 #PuppetChatHistory {
-	flex: 1;
+	flex: 1 1 auto;
+	max-height: 34vh;
 	overflow-y: auto;
-	padding: 12px;
-	background-color: var(--color-card);
-	color: var(--color-text);
-	border-radius: 12px;
+	padding: 4px 2px;
 }
 
 .PuppetChatUser {
-	margin: 8px;
-	padding: 10px 12px;
+	margin: 6px 4px;
+	padding: 9px 12px;
 	border-radius: 12px 12px 4px 12px;
 	background-color: var(--color-user);
 	color: var(--color-text);
-	max-width: 90%;
-	width: fit-content;
-	margin-left: auto;
+	max-width: 88%; width: fit-content; margin-left: auto;
 	text-align: right;
 }
 
 .PuppetChatAgent {
-	margin: 8px;
-	padding: 10px 12px;
+	margin: 6px 4px;
+	padding: 9px 12px;
 	border-radius: 12px 12px 12px 4px;
 	background-color: var(--color-back);
 	color: var(--color-text);
-	max-width: 90%;
-	width: fit-content;
+	max-width: 88%; width: fit-content;
 }
 
 #PuppetChatInputTextArea {
 	width: 100%;
 	box-sizing: border-box;
-	padding: 12px;
+	padding: 11px;
 	border-radius: 10px;
 	resize: none;
 	border: 1px solid var(--color-border);
@@ -173,73 +187,44 @@ html, body {
 	background-color: var(--color-back);
 	color: var(--color-text);
 	overflow: auto;
+	font-family: inherit;
 	transition: border-color 0.2s;
 }
 #PuppetChatInputTextArea:focus { border-color: var(--accent); }
 #PuppetChatInputTextArea::placeholder { color: var(--color-muted); }
 
-/***********************************************************/
-
 .PuppetMicrophonePanel {
-	width: 100%;
-	height: 40px;
+	width: 100%; height: 36px;
 	background-color: var(--color-back);
 	border-radius: 8px;
-	margin-bottom: 10px;
-	padding: 0px;
+	padding: 0;
 }
 
-/***********************************************************/
-
-.PuppetControl {
-	display: flex;
-	justify-content: space-between;
-	height: 50px;
-	padding-top: 10px;
-}
-
-.PuppetControlLeft, .PuppetControlRight {
-	display: flex;
-	gap: 10px;
-}
+.PuppetControl { display: flex; justify-content: space-between; }
+.PuppetControlLeft, .PuppetControlRight { display: flex; gap: 8px; }
 
 .PuppetControl button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 42px;
-	height: 42px;
-	padding: 0;
-	border: 1px solid var(--color-border);
-	border-radius: 10px;
+	display: inline-flex; align-items: center; justify-content: center;
+	width: 40px; height: 40px; padding: 0;
+	border: 1px solid var(--color-border); border-radius: 10px;
 	cursor: pointer;
 	background-color: var(--color-button);
 	color: var(--color-text);
+	font-size: 16px;
 	transition: background-color 0.2s, border-color 0.2s, transform 0.05s;
 }
-
 .PuppetControl button:hover { background-color: var(--color-button-hover); }
 .PuppetControl button:active { transform: scale(0.94); }
-
 .PuppetControl button.active {
 	background-color: var(--color-button-active);
 	border-color: var(--color-button-active);
 }
 
-/*
- * The control icons are <img> svgs using stroke="currentColor", which renders BLACK inside an
- * <img> (the page's color doesn't reach it). So we set their colour with a filter per mode/state:
- * white on the dark theme and on the accent (active) button; dark on light surfaces.
- */
-.PuppetControl button img {
-	width: 20px;
-	height: 20px;
-	filter: brightness(0) invert(1);   /* white */
-	opacity: 0.9;
-}
+/* control icons are <img> svgs (stroke=currentColor renders black in an <img>), so set their colour
+   with a filter per mode/state: white on dark + on the accent; dark on light chips */
+.PuppetControl button img { width: 19px; height: 19px; filter: brightness(0) invert(1); opacity: 0.9; }
 .PuppetControl button.active img { opacity: 1; }
-
 @media (prefers-color-scheme: light) {
-	.PuppetControl button img { filter: brightness(0); opacity: 0.6; }          /* dark icon on light chip */
-	.PuppetControl button.active img { filter: brightness(0) invert(1); opacity: 1; } /* white on accent */
+	.PuppetControl button img { filter: brightness(0); opacity: 0.6; }
+	.PuppetControl button.active img { filter: brightness(0) invert(1); opacity: 1; }
 }

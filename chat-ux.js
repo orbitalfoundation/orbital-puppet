@@ -106,8 +106,8 @@ PuppetControlAuto.onclick = (e) => {
 
 PuppetControlAgent.onclick = (e) => {
 	showagent = PuppetControlAgent.classList.toggle('active')
-	document.querySelectorAll('.PuppetMainRight').forEach(elem=>{
-		elem.style.display = showagent  ? 'block' : 'none'
+	document.querySelectorAll('.AmbassadorPuppet').forEach(elem=>{
+		elem.style.display = showagent ? 'block' : 'none'
 	})
 }
 

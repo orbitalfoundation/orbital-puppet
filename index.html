@@ -3,6 +3,7 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Orbital Puppet — a conversational ambassador for the web</title>
 		<script type="importmap">
 			{
 				"imports": {
@@ -13,46 +14,98 @@
 					"@orbitalfoundation/orbital-volume": "https://cdn.jsdelivr.net/npm/@orbitalfoundation/orbital-volume@2.0.0/volume.js",
 					"orbital-puppet/": "./",
 					"assets/": "./assets/",
-	                "shared/": "./shared/",
+					"shared/": "./shared/",
 					"here/": "./",
 					"@/": "./"
 				}
 			}
 		</script>
-        <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.19/dist/bundle.min.js"></script>
-		<link href="https://fonts.googleapis.com/css2?family=Montserrat&family=Open+Sans&display=swap" rel="stylesheet">        
+		<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.19/dist/bundle.min.js"></script>
+		<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans&display=swap" rel="stylesheet">
 		<link rel="stylesheet" href="style.css">
 	</head>
 	<body>
-		<div class="PuppetContainer" id="PuppetContainer">
-			<div class="PuppetMain">
-				<div class="PuppetMainLeft">
-					<div id="PuppetChatHistory"></div>
-				</div>
-				<div class="PuppetMainRight">
-					<div id="PuppetStatus" class="PuppetStatus" hidden></div>
-					<div style="width:100%;height:100%" id="volume001"></div>
-					<canvas style="display:none" class="PuppetMicrophonePanel" id="PuppetMicrophonePanel"></canvas>
-				</div>
+
+		<!-- the "ordinary website" the ambassador is embedded into -->
+		<main class="HostPage">
+
+			<header class="HostHero">
+				<p class="HostEyebrow">orbital · puppet</p>
+				<h1>An ambassador for your website</h1>
+				<p class="HostLead">A small, embodied, conversational presence that greets people, answers
+				questions, and gives a service a face — running entirely in the browser. Talk to it &rarr;</p>
+			</header>
+
+			<section>
+				<h2>Why an embodied interface?</h2>
+				<p>Most software speaks in forms and menus. That works for the people it was designed
+				around, and quietly excludes a lot of others. Fewer than one in five people touch-type
+				fluently; billions have never really used a computer. A face that listens and talks back
+				meets them on far older, far more universal ground.</p>
+				<p>We have dedicated wetware for human faces and voices — for reading a glance, a pause, a
+				flicker of expression. An embodied agent can borrow that channel. Even for seasoned users,
+				presence can carry warmth and attention that a chat bubble can't.</p>
+			</section>
+
+			<section>
+				<h2>What an ambassador is for</h2>
+				<p>Think of it as a friendly front door. A greeter that can explain a product, walk someone
+				through a process, hand off to a human when it matters, or simply make a site feel less like
+				a vending machine and more like a place with someone in it. It is not trying to replace your
+				interface — it sits beside it, an optional way in for people who'd rather just ask.</p>
+			</section>
+
+			<section>
+				<h2>The hard parts (honestly)</h2>
+				<p>Aliveness is fiddly. Convincing presence is a balancing act of many small things at once:
+				mouth movement synced to the actual audio, breath and pauses, emotion that fits the words,
+				blinks and small facial tics, gaze that finds you, body language that matches the
+				conversation — all while staying clear of the uncanny valley, where <em>almost</em> human
+				reads as unsettling rather than warm.</p>
+				<p>Then there's the plumbing: low-latency speech in and out, a language model light enough to
+				run on a phone or honest enough to call a service, letting a person interrupt mid-sentence
+				(&ldquo;barge-in&rdquo;), and recovering accurate lip-sync timing from generated speech. This
+				puppet does all of it client-side, with no build step — see the
+				<a href="https://github.com/orbitalfoundation/orbital-puppet">repository</a> and its devlog.</p>
+			</section>
+
+			<footer class="HostFoot">
+				Built on <a href="https://github.com/orbitalfoundation/orbital-bus">@orbitalfoundation/bus</a>
+				and <a href="https://github.com/orbitalfoundation/orbital-volume">orbital-volume</a>.
+				Lip-sync &amp; TTS thanks to <a href="https://github.com/met4citizen">Mika Suominen</a>. MIT.
+			</footer>
+
+		</main>
+
+		<!-- the ambassador: a right-side overlay. top = the puppet (transparent 3d), bottom = the chat -->
+		<aside class="Ambassador" id="Ambassador">
+
+			<div class="AmbassadorPuppet">
+				<div id="PuppetStatus" class="PuppetStatus" hidden></div>
+				<div id="volume001"></div>
 			</div>
-			<div class="PuppetBottom">
-				<textarea class="PuppetChatInput" style="width:100%" rows=1 id="PuppetChatInputTextArea" placeholder="Type your message here..."></textarea>
+
+			<div class="AmbassadorChat">
+				<div id="PuppetChatHistory"></div>
+				<canvas style="display:none" class="PuppetMicrophonePanel" id="PuppetMicrophonePanel"></canvas>
+				<textarea class="PuppetChatInput" rows="1" id="PuppetChatInputTextArea" placeholder="Ask me anything…"></textarea>
 				<div class="PuppetControl">
 					<div class="PuppetControlLeft">
-						<button id="PuppetControlMicrophone"><img src="assets/icons/microphone.svg" alt="Microphone" /></button>
-						<button class="active" id="PuppetControlLocal">☁️</button>
-						<button class="active" id="PuppetControlBarge"><img src="assets/icons/barge-in.svg" alt="Barge-in" /></button>
-						<button class="active" id="PuppetControlAuto"><img src="assets/icons/auto-submit.svg" alt="Auto-submit" /></button>
-						<button class="active" id="PuppetControlAgent"><img src="assets/icons/agent.svg" alt="Agent" /></button>
+						<button id="PuppetControlMicrophone" title="Microphone"><img src="assets/icons/microphone.svg" alt="Microphone" /></button>
+						<button class="active" id="PuppetControlLocal" title="Local / cloud reasoning">☁️</button>
+						<button class="active" id="PuppetControlBarge" title="Allow barge-in"><img src="assets/icons/barge-in.svg" alt="Barge-in" /></button>
+						<button class="active" id="PuppetControlAuto" title="Auto-submit speech"><img src="assets/icons/auto-submit.svg" alt="Auto-submit" /></button>
+						<button class="active" id="PuppetControlAgent" title="Show / hide the ambassador"><img src="assets/icons/agent.svg" alt="Agent" /></button>
 					</div>
 					<div class="PuppetControlRight">
-						<button id="PuppetControlSubmit"><img src="assets/icons/submit.svg" alt="Submit" /></button>
+						<button id="PuppetControlSubmit" title="Send"><img src="assets/icons/submit.svg" alt="Submit" /></button>
 					</div>
 				</div>
 			</div>
-		</div>
+
+		</aside>
+
+		<script src="index.js" type="module"></script>
 	</body>
 </html>
-
-<script src="index.js" type="module"></script>

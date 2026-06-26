@@ -56,12 +56,12 @@ bus.resolve([
 			div: 'volume001',
 			near: 0.1,
 			far: 100,
-			cameraPosition:[0,1.5,1], // @todo move this behavior to camera
-			cameraTarget:[0,1.5,0],
+			cameraPosition:[0,1.5,0.92], // framed on the upper body / face
+			cameraTarget:[0,1.42,0],
 			cameraMin: 1,
 			cameraMax: 100,
-			//background: 0x000000,
-			//alpha: false,
+			background: 'transparent', // see-through backdrop so the ambassador floats over the page
+			alpha: true,
 			//axes: true,
 			prettier: true,
 			roomlighting: true,
@@ -72,10 +72,10 @@ bus.resolve([
 		uuid: "camera001",
 		volume: {
 			geometry: 'camera',
-			nocontrols: false,
+			nocontrols: true,        // an ambassador shouldn't grab the page's mouse / drag
 			pose:{
-				position:[0,1.5,1],
-				love:[0,1.5,0]
+				position:[0,1.5,0.92], // close upper-body framing
+				love:[0,1.42,0]
 			}
 		}
 	},
