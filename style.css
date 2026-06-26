@@ -1,23 +1,40 @@
+/*
+ * Theme: "amethyst" — a violet accent on a neutral slate base.
+ * Responsive to the system light/dark preference. Layout is unchanged from before;
+ * this is colours + a few polish touches. To recolour the whole UI, change --accent.
+ */
+
 :root {
-    --color-backdrop: #1A1A1A;
-	--color-card: #2A2A2A;
-    --color-card: #095D72;
-    --color-button: #008997;
-    --color-button-active: #00A9A7;
-    --color-button-hover: #00c9c7;
-	--color-text: #F6F6F6;
-	--color-back: #2A2A2A;
-	--color-note: #3A2A2A;
-    --max-width: 1024px;
+	--accent:        #7c5cff;   /* the one knob: change this to retheme */
+
+	/* dark is the default; the light overrides are in the media query below */
+	--color-backdrop: #0e0f13;
+	--color-card:     #16181e;
+	--color-back:     #20232c;
+	--color-user:     #2b2740;
+	--color-text:     #e7e9ef;
+	--color-muted:    #9aa2b1;
+	--color-border:   #2a2e39;
+	--color-button:        #272b35;
+	--color-button-hover:  #333845;
+	--color-button-active: var(--accent);
+
+	--max-width: 1000px;
 }
 
 @media (prefers-color-scheme: light) {
 	:root {
-		--color-backdrop: #F6F6F6;
-        --color-text: #1A1A1A;
-		--color-back: #EAE0E0;
-		--color-note: #E6E0E0;
-		--color-button: #E4E0E0;
+		--accent:        #6a4cff;
+		--color-backdrop: #f4f5f8;
+		--color-card:     #ffffff;
+		--color-back:     #eef0f5;
+		--color-user:     #ece8ff;
+		--color-text:     #1b1d24;
+		--color-muted:    #5c6373;
+		--color-border:   #e3e6ec;
+		--color-button:        #e7eaf1;
+		--color-button-hover:  #dde1ea;
+		--color-button-active: var(--accent);
 	}
 }
 
@@ -27,7 +44,7 @@ html, body {
 	height: 100%;
 	font-family: 'Montserrat', 'Open Sans', sans-serif;
 	background-color: var(--color-backdrop);
-	color: var(--color-card);
+	color: var(--color-text);
 	transition: background-color 0.3s, color 0.3s;
 	overflow: hidden;
 }
@@ -39,55 +56,51 @@ html, body {
 	flex-direction: column;
 	height: 100vh;
 	overflow: hidden;
-    max-width: 1000px;
-    margin: 0 auto;
-    background-color: var(--color-backdrop);
-    color: var(--color-card);
-    transition: background-color 0.3s, color 0.3s;
+	max-width: var(--max-width);
+	margin: 0 auto;
+	padding: 10px;
+	box-sizing: border-box;
+	background-color: var(--color-backdrop);
+	color: var(--color-text);
+	transition: background-color 0.3s, color 0.3s;
 }
 
 .PuppetMain {
 	display: flex;
 	flex-direction: row;
 	flex: 1;
-
 	gap: 10px;
-
-    overflow: hidden;
+	overflow: hidden;
 }
 
 .PuppetMainLeft, .PuppetMainRight {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
-
 	background-color: var(--color-card);
-	border-radius: 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
 	overflow: hidden;
 }
 
 .PuppetBottom {
 	flex-shrink: 0;
 	background-color: var(--color-card);
+	border: 1px solid var(--color-border);
 	color: var(--color-text);
-	border-radius: 10px;
-    margin-top: 10px;
-    margin-bottom: 10px;
+	border-radius: 12px;
+	padding: 10px;
+	box-sizing: border-box;
+	margin-top: 10px;
 }
 
 @media (max-width: 1000px) {
-	.PuppetMain {
-		flex-direction: column;
-	}
-    .PuppetMainRight {
-        margin-left: 0px;
-    }
+	.PuppetMain { flex-direction: column; }
+	.PuppetMainRight { margin-left: 0px; }
 }
 
-@media only screen and (hover: none) and (pointer: coarse){
-    .PuppetContainer {
-        height: 90vh;
-    }
+@media only screen and (hover: none) and (pointer: coarse) {
+	.PuppetContainer { height: 90vh; }
 }
 
 /***********************************************************/
@@ -95,51 +108,49 @@ html, body {
 #PuppetChatHistory {
 	flex: 1;
 	overflow-y: auto;
-	padding: 10px;
+	padding: 12px;
 	background-color: var(--color-card);
 	color: var(--color-text);
-	border-radius: 10px;
+	border-radius: 12px;
 }
 
 .PuppetChatUser {
 	margin: 8px;
-	padding: 10px;
-	border-radius: 5px;
-	background-color: var(--color-back);
+	padding: 10px 12px;
+	border-radius: 12px 12px 4px 12px;
+	background-color: var(--color-user);
+	color: var(--color-text);
 	max-width: 90%;
 	width: fit-content;
 	margin-left: auto;
 	text-align: right;
-	filter: brightness(1.2);
 }
 
 .PuppetChatAgent {
 	margin: 8px;
-	padding: 0 8px 0 8px;
-	border-radius: 5px;
-}
-
-.PuppetChatInput {
-	display: flex;
-	padding: 10px;
-	background-color: var(--color-button);
-	border-radius: 5px;
-	box-sizing: border-box;
+	padding: 10px 12px;
+	border-radius: 12px 12px 12px 4px;
+	background-color: var(--color-back);
+	color: var(--color-text);
+	max-width: 90%;
+	width: fit-content;
 }
 
 #PuppetChatInputTextArea {
-	flex: 1;
-	padding: 8px;
-	border-radius: 5px;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 12px;
+	border-radius: 10px;
 	resize: none;
-	border-style: none;
-	border-color: transparent;
+	border: 1px solid var(--color-border);
 	outline: none;
-	background-color: var(--color-card);
-	filter: brightness(1.2);
+	background-color: var(--color-back);
 	color: var(--color-text);
 	overflow: auto;
+	transition: border-color 0.2s;
 }
+#PuppetChatInputTextArea:focus { border-color: var(--accent); }
+#PuppetChatInputTextArea::placeholder { color: var(--color-muted); }
 
 /***********************************************************/
 
@@ -147,7 +158,7 @@ html, body {
 	width: 100%;
 	height: 40px;
 	background-color: var(--color-back);
-	border-radius: 5px;
+	border-radius: 8px;
 	margin-bottom: 10px;
 	padding: 0px;
 }
@@ -167,20 +178,42 @@ html, body {
 }
 
 .PuppetControl button {
-	padding: 10px;
-	border: none;
-	border-radius: 5px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 42px;
+	height: 42px;
+	padding: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
 	cursor: pointer;
-    transition: background-color 0.3s;
 	background-color: var(--color-button);
 	color: var(--color-text);
+	transition: background-color 0.2s, border-color 0.2s, transform 0.05s;
 }
+
+.PuppetControl button:hover { background-color: var(--color-button-hover); }
+.PuppetControl button:active { transform: scale(0.94); }
 
 .PuppetControl button.active {
 	background-color: var(--color-button-active);
+	border-color: var(--color-button-active);
 }
 
-.PuppetControl button:hover {
-	background-color: var(--color-button-hover);
+/*
+ * The control icons are <img> svgs using stroke="currentColor", which renders BLACK inside an
+ * <img> (the page's color doesn't reach it). So we set their colour with a filter per mode/state:
+ * white on the dark theme and on the accent (active) button; dark on light surfaces.
+ */
+.PuppetControl button img {
+	width: 20px;
+	height: 20px;
+	filter: brightness(0) invert(1);   /* white */
+	opacity: 0.9;
 }
+.PuppetControl button.active img { opacity: 1; }
 
+@media (prefers-color-scheme: light) {
+	.PuppetControl button img { filter: brightness(0); opacity: 0.6; }          /* dark icon on light chip */
+	.PuppetControl button.active img { filter: brightness(0) invert(1); opacity: 1; } /* white on accent */
+}
