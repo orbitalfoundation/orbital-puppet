@@ -20,7 +20,10 @@ let bus = null
 
 import { HeadTTS } from 'https://cdn.jsdelivr.net/npm/@met4citizen/headtts@1.3/+esm'
 
-const HEADTTS_BASE = 'https://cdn.jsdelivr.net/npm/@met4citizen/headtts@1.3'
+// NOTE: the npm package ships the code but NOT the voices/dictionaries (.bin/.txt data), so those
+// must be loaded from jsDelivr's GitHub mirror (/gh/), which serves the full repo. The module itself
+// comes from npm /+esm above.
+const HEADTTS_GH = 'https://cdn.jsdelivr.net/gh/met4citizen/HeadTTS@1.3.0'
 const DEFAULT_VOICE = 'af_bella'
 
 let headtts = null
@@ -33,9 +36,9 @@ function initHeadTTS(config = {}) {
 	const voice = config.voice || DEFAULT_VOICE
 	headtts = new HeadTTS({
 		transformersModule: 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.0/dist/transformers.min.js',
-		workerModule: `${HEADTTS_BASE}/modules/worker-tts.mjs`,
-		dictionaryURL: `${HEADTTS_BASE}/dictionaries/`,
-		voiceURL: `${HEADTTS_BASE}/voices`,
+		workerModule: `${HEADTTS_GH}/modules/worker-tts.mjs`,
+		dictionaryURL: `${HEADTTS_GH}/dictionaries/`,
+		voiceURL: `${HEADTTS_GH}/voices`,
 		endpoints: ['webgpu', 'wasm'],   // run in-browser; webgpu preferred, wasm fallback
 		languages: ['en-us'],
 		voices: [voice],
