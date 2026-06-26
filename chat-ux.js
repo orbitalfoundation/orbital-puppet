@@ -25,6 +25,21 @@ function textToChatWindow(text,isUser=true) {
 }
 
 //
+// update the in-place status indicator (model loading, thinking, speaking, ready) — replaces text
+// rather than appending, so progress updates don't spam the chat history. auto-hides when ready.
+//
+
+function setStatus(text, ready=false) {
+	const el = document.getElementById('PuppetStatus')
+	if(!el) return
+	if(!text) { el.hidden = true; return }
+	el.textContent = text
+	el.hidden = false
+	clearTimeout(el._hideTimer)
+	if(ready) el._hideTimer = setTimeout(() => { el.hidden = true }, 1500)
+}
+
+//
 // deal with user hitting submit
 //
 
@@ -153,9 +168,9 @@ function resolve(blob) {
 		textToChatWindow(blob.perform.text,false)
 	}
 
-	// print any status messages
+	// surface status (model loading progress, thinking, speaking, ready) in the in-place indicator
 	if(blob.status) {
-		textToChatWindow(blob.status.text,false)
+		setStatus(blob.status.text, blob.status.color === 'ready')
 	}
 }
 

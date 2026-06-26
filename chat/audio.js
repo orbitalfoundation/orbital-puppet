@@ -35,7 +35,21 @@ async function resolve_queue(perform, handler) {
 			continue
 		}
 
-		// hand the puppet the synced packet (audio + lipsync) right as playback begins
+		// Anchor lip-sync to when the audio will actually be AUDIBLE — now plus the context's output
+		// latency — not to when we call start(). vtimes are ms from audio start, so the puppet adds
+		// them to this. (Without this, visemes lead the sound by the hardware buffer latency.)
+		const startMs = performance.now() + (context.outputLatency || 0) * 1000
+		perform._startMs = startMs
+
+		// diagnostic: compare audio length vs the viseme span (catches any systematic vtime offset)
+		const lp = perform.lipsync
+		if (lp && lp.visemes && lp.visemes.length) {
+			const n = lp.visemes.length
+			const span = lp.vtimes[n - 1] + (lp.vdurations ? lp.vdurations[n - 1] : 0)
+			console.log(`audio - dur=${audioBuffer.duration.toFixed(2)}s  visemes n=${n} span=[${lp.vtimes[0] | 0}..${span | 0}]ms  outLatency=${((context.outputLatency || 0) * 1000) | 0}ms`)
+		}
+
+		// hand the puppet the synced packet (audio + lipsync) just before playback begins
 		bus.resolve({ puppetsync: perform })
 
 		// play it, awaiting completion so the queue stays in order

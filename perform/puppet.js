@@ -34,8 +34,10 @@ function perform(volume,perform,time) {
 	if(perform.action) {
 	}
 
-	// build the viseme sequence (HeadTTS lipsync data) anchored at the current start time
-	volume.sequence = visemes_sequence(volume,perform.lipsync,time)
+	// anchor the viseme sequence at the audio's actual output time (set by audio.js, accounts for
+	// hardware latency) when available, otherwise now
+	const anchor = perform._startMs || time
+	volume.sequence = visemes_sequence(volume,perform.lipsync,anchor)
 
 	// a test approach: set a time to be completed by
 	volume.relaxation = volume.sequence.length ? volume.sequence[volume.sequence.length-1].ts[1] : 0

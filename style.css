@@ -83,6 +83,32 @@ html, body {
 	overflow: hidden;
 }
 
+.PuppetMainRight { position: relative; } /* anchor the status overlay */
+
+/* in-place loading/status indicator over the viewport (model loading, thinking, speaking, ready) */
+.PuppetStatus {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	right: 10px;
+	z-index: 5;
+	padding: 8px 12px;
+	border-radius: 10px;
+	font-size: 13px;
+	text-align: center;
+	color: var(--color-text);
+	pointer-events: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	background: var(--color-card);
+	background: color-mix(in srgb, var(--accent) 20%, var(--color-card));
+	border: 1px solid var(--accent);
+	box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+	transition: opacity 0.3s;
+}
+.PuppetStatus[hidden] { display: none; }
+
 .PuppetBottom {
 	flex-shrink: 0;
 	background-color: var(--color-card);
