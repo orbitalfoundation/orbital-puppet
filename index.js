@@ -202,3 +202,13 @@ bus.resolve([
 	},
 ])
 
+//
+// drive the world. The old orbital-sys auto-ticked; @orbitalfoundation/bus does NOT — so we start a
+// realtime loop ourselves (requestAnimationFrame in the browser). This is what renders the scene
+// continuously, plays the avatar's animation, and runs the puppet's per-frame performance. Without
+// it the avatar loads but is only drawn once (before it finishes loading) and never appears.
+//
+
+console.log('puppet - manifest loaded; starting realtime tick')
+bus.resolve({ run:'realtime', hz:60, dt:1/60 })
+

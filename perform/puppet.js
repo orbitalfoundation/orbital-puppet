@@ -90,7 +90,8 @@ async function resolve(blob) {
 		if(blob.obliterate) {
 			delete this._puppets[blob.uuid]
 		} else {
-			this._puppets[blob.uuid] = blob	
+			this._puppets[blob.uuid] = blob
+			console.log('puppet - tracking puppet', blob.uuid)
 		}
 	}
 
