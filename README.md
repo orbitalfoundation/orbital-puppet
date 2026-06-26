@@ -3,7 +3,7 @@
 A voice-to-voice, LLM-driven **3D talking puppet** that runs in the browser — all-local (in-browser
 LLM/TTS/STT via WASM/WebGPU) or wired to cloud APIs. Embodied, reactive, no bundler.
 
-![puppet screenshot](screenshot.png?raw=true "puppet")
+![Alex, the conversational ambassador, embedded on a web page](puppet-example.png?raw=true "Orbital Puppet — an embeddable ambassador")
 
 ## Run
 
