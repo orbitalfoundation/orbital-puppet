@@ -35,6 +35,7 @@ This is an older project with a lot of accumulated thinking, kept out of this RE
 
 - [20240801 — original design + Rev 1–4 history](devlog/20240801-original-design-and-revisions.md) (the rationale, the lip-sync/TTS/STT research, why each choice was made)
 - [20260625 — bus migration + modernization research & plan](devlog/20260625-bus-migration-and-modernization-research.md) (the move to `@orbitalfoundation/bus`, killing the TTS→STT timing hack via HeadTTS, and the staged plan)
+- [20260626 — implementation: Stage 0 + Stage 1](devlog/20260626-implementation-stage0-1.md) (what actually got built: bus migration, HeadTTS, cleanup, and what's left)
 
 ## License
 
