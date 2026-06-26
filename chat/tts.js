@@ -26,50 +26,57 @@ const DEFAULT_VOICE = 'af_bella'
 let headtts = null
 let headttsReady = null
 
-// lazily construct + connect HeadTTS once, reused across utterances
+// lazily construct + connect HeadTTS once, reused across utterances (real API per the HeadTTS demo:
+// CDN module URLs, connect(), setup(), and results delivered via onmessage — not awaited).
 function initHeadTTS(config = {}) {
 	if (headttsReady) return headttsReady
 	const voice = config.voice || DEFAULT_VOICE
 	headtts = new HeadTTS({
+		transformersModule: 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.0/dist/transformers.min.js',
+		workerModule: `${HEADTTS_BASE}/modules/worker-tts.mjs`,
+		dictionaryURL: `${HEADTTS_BASE}/dictionaries/`,
+		voiceURL: `${HEADTTS_BASE}/voices`,
 		endpoints: ['webgpu', 'wasm'],   // run in-browser; webgpu preferred, wasm fallback
 		languages: ['en-us'],
 		voices: [voice],
-		workerModule: `${HEADTTS_BASE}/modules/worker-tts.mjs`,
-		dictionaryURL: `${HEADTTS_BASE}/dictionaries/`,
 	})
 	headttsReady = headtts.connect().then(() => {
+		// no audioCtx is passed, so audio comes back encoded (wav) for audio.js to decode in its own context
 		headtts.setup({ voice, language: 'en-us', speed: config.speed || 1, audioEncoding: 'wav' })
 		return headtts
 	})
 	return headttsReady
 }
 
-// synthesize one utterance -> { audio: ArrayBuffer(wav), lipsync: {visemes,vtimes,vdurations,words,...} }
-async function perform_tts_local(text, config) {
-	await initHeadTTS(config)
-	const messages = await headtts.synthesize({ input: text })
-
-	// HeadTTS replies with a metadata message (carrying visemes/words/timing) plus the binary audio.
-	// Be liberal about the exact envelope: a message may be the payload directly or wrapped in {data}.
-	let meta = null, audio = null
-	for (const m of (messages || [])) {
-		const d = (m && m.data !== undefined) ? m.data : m
-		if (d && d.visemes) meta = d
-		if (d && d.audio) audio = d.audio
-		else if (d instanceof ArrayBuffer) audio = d
-		else if (m instanceof ArrayBuffer) audio = m
-	}
-	if (!audio || !meta) {
-		console.error('tts - HeadTTS returned no audio/metadata', messages)
-		return null
-	}
-	return {
-		audio,
-		lipsync: {
-			visemes: meta.visemes, vtimes: meta.vtimes, vdurations: meta.vdurations,
-			words: meta.words, wtimes: meta.wtimes, wdurations: meta.wdurations,
-		},
-	}
+// synthesize one fragment -> { audio: <wav bytes>, lipsync: {visemes,vtimes,vdurations,words,...} }
+// HeadTTS delivers an "audio" message whose .data carries BOTH the audio and the lip-sync timing.
+// We serialize calls (see resolve_queue) so a single onmessage handler per call is safe.
+function perform_tts_local(text, config) {
+	return initHeadTTS(config).then(() => new Promise((resolve) => {
+		let done = false
+		headtts.onmessage = (message) => {
+			if (done) return
+			if (message.type === 'audio') {
+				done = true
+				const d = message.data || {}
+				let audio = d.audio
+				// normalize a typed-array to its ArrayBuffer so audio.js can decodeAudioData it
+				if (audio && !(audio instanceof ArrayBuffer) && audio.buffer instanceof ArrayBuffer) audio = audio.buffer
+				resolve({
+					audio,
+					lipsync: {
+						visemes: d.visemes, vtimes: d.vtimes, vdurations: d.vdurations,
+						words: d.words, wtimes: d.wtimes, wdurations: d.wdurations,
+					},
+				})
+			} else if (message.type === 'error') {
+				done = true
+				console.error('tts - HeadTTS error', message.data)
+				resolve(null)
+			}
+		}
+		headtts.synthesize({ input: text })
+	}))
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
