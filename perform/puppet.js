@@ -60,7 +60,7 @@ function update(volume,time) {
 
 	// test: relax after a certain time; dampening to rest
 	if(!volume.relaxation || volume.relaxation < time ) {
-		facial_ticks(volume.time)
+		facial_ticks(volume,time)   // was facial_ticks(volume.time) — wrong args, so tics never ran
 		visemes_to_rig(volume,time,0.9)
 	}
 

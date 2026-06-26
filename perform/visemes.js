@@ -59,67 +59,56 @@ export function visemes_sequence(volume, lipsync, time) {
 }
 
 //
-// given a large collection of targets, apply those that are in the right time window
+// Apply the active visemes for `time` to the rig targets, smoothly.
 //
-// @todo we throw away the supplied time because the performance init doesn't have it
-// @note i go out of my way to set the unused visemes to zero
-// @note i have fiddled with the attack and release to get something that feels ok - it is a bit jittery
+// HeadTTS gives dense phoneme visemes (~60-90ms each). The old model (fast *0.85 decay + steep
+// cubic attack/release, snapping each viseme on/off) flapped the mouth — measurably ~40 open/close
+// reversals/sec (see test/viseme-harness.mjs). Instead we:
+//   1. compute a TARGET per viseme from a smooth cosine bell over each active window, taking the
+//      strongest active value per key (overlapping windows coarticulate rather than fight), then
+//   2. low-pass the displayed value toward that target, which removes the per-frame jitter.
+//
+// SMOOTH (0..1 per frame): lower = smoother/slower; higher = snappier. Tune in the harness.
 //
 
-export function	visemes_update(volume,time) {
+const SMOOTH = 0.30
 
-	const attack = 50
-	const release = 60
+const VISEME_KEYS = [
+	'viseme_PP','viseme_FF','viseme_TH','viseme_DD','viseme_kk','viseme_CH','viseme_SS',
+	'viseme_nn','viseme_RR','viseme_aa','viseme_E','viseme_I','viseme_O','viseme_U',
+]
 
-	// track visemes here for now
+export function visemes_update(volume,time) {
+
 	if(!volume.visemes) {
-		volume.visemes = {
-			'viseme_PP': 0,
-			'viseme_FF': 0,
-			'viseme_TH': 0,
-			'viseme_DD': 0,
-			'viseme_kk': 0,
-			'viseme_CH': 0,
-			'viseme_SS': 0,
-			'viseme_nn': 0,
-			'viseme_RR': 0,
-			'viseme_aa': 0,
-			'viseme_E': 0,
-			'viseme_I': 0,
-			'viseme_O': 0,
-			'viseme_U': 0,
-		}
+		volume.visemes = {}
+		for(const k of VISEME_KEYS) volume.visemes[k] = 0
 	}
-
 	const visemes = volume.visemes
 
-	// as a test generally speaking i am dampening the visemes after they are set
-	// this is separate from the relaxation idea above
-	// it's arguable if this looks good on the face @todo evaluate more? non-linear curves might make sense also
-
-	Object.entries(visemes).forEach( ([k,v]) => {
-		visemes[k] = v > 0.01 ? v * 0.85 : 0
-	})
-
-	// for the current moment in time - set morph targets
-	// @note playing with different timings on visemes to reduce jitter and be more realistic
+	// 1) target for this instant — smooth bell per active viseme window, strongest-wins per key
+	const target = {}
+	for(const k of VISEME_KEYS) target[k] = 0
 
 	for(const item of volume.sequence) {
 		const begins = item.ts[0]
 		const ends = item.ts[1]
 		if(begins > time || ends < time) continue
-		Object.entries(item.vs).forEach( ([k,v]) => {
-			v = v[1]
-			if((time - begins) < attack) v *= Math.pow((time-begins)/attack,3)
-			if((ends - time) < release) v *= Math.pow((release-(ends-time))/release,3)
-			visemes[k] = v
-		})
+		const span = ends - begins
+		const u = span > 0 ? (time - begins) / span : 0
+		const env = Math.sin(Math.PI * Math.max(0, Math.min(1, u)))   // 0 at edges, 1 mid-window
+		for(const k in item.vs) {
+			const mag = item.vs[k][1] * env
+			if(mag > target[k]) target[k] = mag
+		}
 	}
 
-	// copy visemes over to actual targeting system for rendering to the real puppet
-	Object.entries(visemes).forEach( ([k,v]) => {
-		volume.targets[k] = v
-	})
+	// 2) low-pass the displayed value toward the target (this is what kills the flapping)
+	for(const k of VISEME_KEYS) {
+		const next = visemes[k] + (target[k] - visemes[k]) * SMOOTH
+		visemes[k] = next < 0.004 ? 0 : next
+		volume.targets[k] = visemes[k]
+	}
 }
 
 //
