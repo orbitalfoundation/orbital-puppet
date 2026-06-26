@@ -1,60 +1,113 @@
 
 const uuid = 'tts-system'
 
-
-// the bus, captured from the second arg of resolve() when this service is registered
+// the bus, captured from resolve()'s 2nd arg at registration
 let bus = null
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-// tts local wasm worker using vits - slower on older machines
 //
-// declare worker as a string and fetch wasm from cdn due to vites import map failing on dynamic imports
+// Text to speech via HeadTTS (met4citizen) — a Kokoro-82M neural TTS that runs in the browser
+// (WebGPU, WASM fallback) and returns audio TOGETHER WITH word/phoneme timing and Oculus visemes.
 //
-// @todo it would be nice to use one copy of onyx
-// @todo even having these present at all seems to crash the client on mobile
+// This replaces the old @diffusionstudio/vits-web worker AND the entire "run the audio back through
+// Whisper to recover word timing" diarization hack — the timing is now native to the TTS.
+// See devlog/20260625-bus-migration-and-modernization-research.md.
+//
+// A remote (OpenAI) path is kept for power users; it returns audio with no timing (no lip-sync yet —
+// a Cartesia/phoneme path is the planned follow-up).
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const ttsString = `
-import * as tts from 'https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm'
-self.addEventListener('message', (e) => {
-	const text = e.data.text || 'please supply some text'
-	const voiceId = e.data.voice || 'en_US-hfc_female-medium'
-	tts.predict({text,voiceId}).then(audio => {
-		new Promise((resolve, reject) => {
-			const reader = new FileReader()
-			reader.onload = () => resolve(reader.result)
-			reader.onerror = () => reject(reader.error)
-			reader.readAsArrayBuffer(audio)
-		}).then(audio => {
-			self.postMessage(audio)
-		})
+import { HeadTTS } from 'https://cdn.jsdelivr.net/npm/@met4citizen/headtts@1.3/+esm'
+
+const HEADTTS_BASE = 'https://cdn.jsdelivr.net/npm/@met4citizen/headtts@1.3'
+const DEFAULT_VOICE = 'af_bella'
+
+let headtts = null
+let headttsReady = null
+
+// lazily construct + connect HeadTTS once, reused across utterances
+function initHeadTTS(config = {}) {
+	if (headttsReady) return headttsReady
+	const voice = config.voice || DEFAULT_VOICE
+	headtts = new HeadTTS({
+		endpoints: ['webgpu', 'wasm'],   // run in-browser; webgpu preferred, wasm fallback
+		languages: ['en-us'],
+		voices: [voice],
+		workerModule: `${HEADTTS_BASE}/modules/worker-tts.mjs`,
+		dictionaryURL: `${HEADTTS_BASE}/dictionaries/`,
 	})
-})
-`
+	headttsReady = headtts.connect().then(() => {
+		headtts.setup({ voice, language: 'en-us', speed: config.speed || 1, audioEncoding: 'wav' })
+		return headtts
+	})
+	return headttsReady
+}
 
-const worker_tts = new Worker(URL.createObjectURL(new Blob([ttsString],{type:'text/javascript'})),{type:'module'})
+// synthesize one utterance -> { audio: ArrayBuffer(wav), lipsync: {visemes,vtimes,vdurations,words,...} }
+async function perform_tts_local(text, config) {
+	await initHeadTTS(config)
+	const messages = await headtts.synthesize({ input: text })
+
+	// HeadTTS replies with a metadata message (carrying visemes/words/timing) plus the binary audio.
+	// Be liberal about the exact envelope: a message may be the payload directly or wrapped in {data}.
+	let meta = null, audio = null
+	for (const m of (messages || [])) {
+		const d = (m && m.data !== undefined) ? m.data : m
+		if (d && d.visemes) meta = d
+		if (d && d.audio) audio = d.audio
+		else if (d instanceof ArrayBuffer) audio = d
+		else if (m instanceof ArrayBuffer) audio = m
+	}
+	if (!audio || !meta) {
+		console.error('tts - HeadTTS returned no audio/metadata', messages)
+		return null
+	}
+	return {
+		audio,
+		lipsync: {
+			visemes: meta.visemes, vtimes: meta.vtimes, vdurations: meta.vdurations,
+			words: meta.words, wtimes: meta.wtimes, wdurations: meta.wdurations,
+		},
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// remote tts - using openai (audio only, no viseme timing yet)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+async function perform_tts_remote(args) {
+	const url = args.url || 'https://api.openai.com/v1/audio/speech'
+	const props = {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${args.bearer || ''}` },
+		body: JSON.stringify({ model: args.model || 'tts-1', voice: args.voice || 'shimmer', input: args.text }),
+	}
+	try {
+		const response = await fetch(url, props)
+		if (!response.ok) { console.error('puppet:tts error', response); return null }
+		return { audio: await response.arrayBuffer(), lipsync: null }
+	} catch (err) {
+		console.error('Error:', err)
+	}
+	return null
+}
 
 //
 // utility to correct pronounciation of dollars
 //
 
 function numberToWords(num) {
-	const a = [
-			'', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
-			'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'
-	];
-	const b = [
-			'', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'
-	];
-
+	const a = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+		'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
+	const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
 	const numToWords = (n) => {
-			if (n < 20) return a[n];
-			if (n < 100) return b[Math.floor(n / 10)] + (n % 10 ? '-' + a[n % 10] : '');
-			if (n < 1000) return a[Math.floor(n / 100)] + ' hundred' + (n % 100 ? ' and ' + numToWords(n % 100) : '');
-			return numToWords(Math.floor(n / 1000)) + ' thousand' + (n % 1000 ? ' ' + numToWords(n % 1000) : '');
-	};
-
-	return numToWords(num);
+		if (n < 20) return a[n]
+		if (n < 100) return b[Math.floor(n / 10)] + (n % 10 ? '-' + a[n % 10] : '')
+		if (n < 1000) return a[Math.floor(n / 100)] + ' hundred' + (n % 100 ? ' and ' + numToWords(n % 100) : '')
+		return numToWords(Math.floor(n / 1000)) + ' thousand' + (n % 1000 ? ' ' + numToWords(n % 1000) : '')
+	}
+	return numToWords(num)
 }
 
 function convertAmountToWords(amount) {
@@ -66,116 +119,62 @@ function convertAmountToWords(amount) {
 
 function fixDollars(sentence) {
 	return sentence.replace(/\$\d+(\.\d{1,2})?/g, (match) => {
-			const amount = parseFloat(match.replace('$', ''))
-			return convertAmountToWords(amount)
-	});
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-// tss remote - using openai
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-async function perform_tts_remote(args) {
-
-	const url = args.url || 'https://api.openai.com/v1/audio/speech'
-
-	const props = {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			Authorization: `Bearer ${args.bearer||''}`
-		},
-		body: JSON.stringify({
-			model: args.model || "tts-1",
-			voice: args.voice || "shimmer",
-			input: args.text,
-		}),
-	}
-
-	try {
-		const response = await fetch(url,props)
-		if(!response.ok) {
-			console.error("puppet:tts error",response)
-			return null
-		}
-		const buffer = await response.arrayBuffer()
-		return { data: buffer }
-	} catch(err) {
-	  console.error('Error:', err)
-	}
-	return null
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-// perform tts - async promise returns results
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-function perform_tts(perform,tts) {
-
-	// patch up dollar sounds
-	const text = fixDollars(perform.text).replace(/[*<>#%-]/g, "")
-	if(!text || !text.length) return
-	const args = {...tts, text }
-
-	// hack - don't send this to worker
-	delete args._queue
-
-	// allow remote tts for performance
-	if(tts && tts.remote && tts.url) {
-		return perform_tts_remote(args)
-	}
-
-	// do local tts - returning results to promise to awaiting caller
-	return new Promise((happy,sad)=>{
-		worker_tts.onmessage = async (event) => { happy(event) }
-		worker_tts.postMessage(args)
+		const amount = parseFloat(match.replace('$', ''))
+		return convertAmountToWords(amount)
 	})
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-// tts queue - convert audio to text one by one
+// synthesize one perform fragment -> audio (+lipsync) and republish on the bus
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 let rcounter = 1000
 let bcounter = 0
 
-async function resolve_one(perform,handler,sys) {
+async function perform_tts(perform, tts) {
+	const text = fixDollars(perform.text).replace(/[*<>#%-]/g, '')
+	if (!text || !text.length) return null
+	if (tts && tts.remote && tts.url) return perform_tts_remote({ ...tts, text })
+	return perform_tts_local(text, tts || {})
+}
+
+async function resolve_one(perform, handler) {
 	const interrupt = perform.interrupt
-	if(interrupt && handler._latest_interrupt > interrupt) return
-	const results = await perform_tts(perform,handler)
-	if(!results || !results.data) return
-	if(interrupt && handler._latest_interrupt > interrupt) return
+	if (interrupt && handler._latest_interrupt > interrupt) return
+	const results = await perform_tts(perform, handler)
+	if (!results || !results.audio) return
+	if (interrupt && handler._latest_interrupt > interrupt) return
 	rcounter++
-	bus.resolve({perform:{
+	bus.resolve({ perform: {
 		text: perform.text,
-		audio:results.data,
+		audio: results.audio,
+		lipsync: results.lipsync || null,   // Oculus visemes + timing from HeadTTS (null for remote)
 		interrupt,
 		human: perform.human ? true : false,
 		final: perform.final ? true : false,
 		rcounter: perform.rcounter || rcounter,
-		bcounter: perform.bcounter || bcounter
+		bcounter: perform.bcounter || bcounter,
 	}})
-	console.log('tts - publishing audio... text =',perform.text,"final =",perform.final,"time =",interrupt)
+	console.log('tts - publishing audio... text =', perform.text, 'visemes =', results.lipsync ? results.lipsync.visemes.length : 0)
 }
 
-async function resolve_queue(perform,handler,sys) {
+async function resolve_queue(perform, handler) {
 	handler._queue.push(perform)
-	if(handler._queue.length != 1) return
-	while(handler._queue.length) {
-		await resolve_one(handler._queue[0],handler,sys)
+	if (handler._queue.length != 1) return
+	while (handler._queue.length) {
+		await resolve_one(handler._queue[0], handler)
 		handler._queue.shift()
 	}
 }
 
-function resolve(blob,sys) {
-	bus = arguments[1] || bus
+function resolve(blob, _bus) {
+	bus = _bus || bus
 
 	// ignore?
-	if(!blob || blob.tick || blob.time) return
+	if (!blob || blob.tick || blob.time) return
 
 	// accumulate entities that handle tts as per orbital ecs architecture
-	if(blob.tts && blob.uuid) {
+	if (blob.tts && blob.uuid) {
 		const handler = this._handlers[blob.tts.uuid] = blob.tts
 		handler._queue = []
 	}
@@ -183,24 +182,19 @@ function resolve(blob,sys) {
 	// find handler for event - pick first one for now improve later @todo
 	let candidates = Object.values(this._handlers)
 	const handler = candidates.length ? candidates[0] : null
-	if(!handler) return
+	if (!handler) return
 
 	// stop all if there is a bargein from a human
-	if(blob.perform && blob.perform.human && blob.perform.bargein) {
+	if (blob.perform && blob.perform.human && blob.perform.bargein) {
 		handler._latest_interrupt = blob.perform.interrupt
 		handler._queue = []
 	}
 
-	// ignore?
-	if( !blob.perform ||
-		blob.perform.human ||
-		!blob.perform.text ||
-		!blob.perform.text.length ||
-		blob.perform.audio
-		) return
+	// ignore non-speakable / already-audio / human traffic
+	if (!blob.perform || blob.perform.human || !blob.perform.text || !blob.perform.text.length || blob.perform.audio) return
 
-	// resolve - do not await because it will seize up the orbital sys message bus
-	resolve_queue(blob.perform,handler,sys)
+	// do not await - would seize up the bus dispatch
+	resolve_queue(blob.perform, handler)
 }
 
 export const tts_system = {
@@ -209,4 +203,3 @@ export const tts_system = {
 	uuid,
 	resolve,
 }
-

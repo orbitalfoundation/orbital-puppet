@@ -1,24 +1,61 @@
 
 import { lipsyncConvert } from '../talking-heads/lipsync-queue.js'
 
-export function visemes_sequence(volume,whisper,time) {
+//
+// Build a timed viseme sequence for the rig.
+//
+// `lipsync` is HeadTTS output: { visemes:[Oculus ids], vtimes:[ms], vdurations:[ms], words, wtimes, wdurations }.
+// HeadTTS gives Oculus visemes + timing natively, so we map them straight to anim items — no Whisper,
+// no forced alignment, no word->phoneme re-estimation. `time` is performance.now() at playback start;
+// vtimes are ms from the start of the audio.
+//
+// Fallback: if only word timing is present (e.g. a cloud TTS that returns words but not visemes),
+// run Mika's word->phoneme->viseme estimator (lipsyncConvert).
+//
+// LEAD nudges visemes slightly ahead of the audio; tune to taste.
+//
 
-	if(!whisper) {
-		console.warn("puppet - no whisper data") // @todo compute a different way
-		return []
+const LEAD = 0
+
+export function visemes_sequence(volume, lipsync, time) {
+
+	if (!lipsync) return []
+
+	// native HeadTTS visemes — the fast, accurate path
+	if (lipsync.visemes && lipsync.vtimes && lipsync.visemes.length) {
+		const sequence = []
+		for (let i = 0; i < lipsync.visemes.length; i++) {
+			const v = lipsync.visemes[i]
+			if (!v || v === 'sil') continue
+			const t = time + lipsync.vtimes[i] - LEAD
+			const d = (lipsync.vdurations && lipsync.vdurations[i]) || 80
+			const mag = (v === 'PP' || v === 'FF') ? 0.9 : 0.6
+			sequence.push({
+				ts: [ t - Math.min(60, (2 * d) / 3), t + d + Math.min(60, d / 2) ],
+				vs: { ['viseme_' + v]: [null, mag] },
+			})
+		}
+		return sequence
 	}
 
-	const o = lipsyncConvert(whisper,"en")
-	const sequence = o && o.anim || []
-
-	for(const item of sequence) {
-		// @todo remove the fudge factor coming in from Mika's code
-		item.ts[0] += time + 150
-		item.ts[1] += time + 150
-		item.ts[2] += time + 150
+	// fallback: word timing -> Mika's phoneme estimator (cloud TTS without native visemes)
+	if (lipsync.words && lipsync.words.length && lipsync.wtimes) {
+		const whisper = lipsync.words.map((w, i) => ({
+			word: w,
+			start: (lipsync.wtimes[i]) / 1000,
+			end: (lipsync.wtimes[i] + (lipsync.wdurations ? lipsync.wdurations[i] : 200)) / 1000,
+		}))
+		const o = lipsyncConvert(whisper, 'en')
+		const sequence = o && o.anim || []
+		for (const item of sequence) {
+			item.ts[0] += time
+			item.ts[1] += time
+			item.ts[2] += time
+		}
+		return sequence
 	}
 
-	return sequence
+	return []
 }
 
 //

@@ -27,9 +27,9 @@ await bus.resolve({
 		// reason using an llm
 		'orbital-puppet/chat/llm.js',
 
-		// text to speech using a wasm based tts and speech diarization and then an audio player
+		// text to speech (HeadTTS — returns audio + Oculus visemes + timing natively) then an audio player
+		// (the old whisper "diarization" timing-recovery hack is gone — HeadTTS gives us the timing)
 		'orbital-puppet/chat/tts.js',
-		'orbital-puppet/chat/stt-diarization.js',
 		'orbital-puppet/chat/audio.js',
 
 		// built-in tts has poor results because it doesn't tell us the duration of the audio output
@@ -176,10 +176,10 @@ bus.resolve([
 			//llm_auth: '',
 		},
 
-		// for local tts this is a setup using piper - if the 'voice' parameter is set to garbage it will crash
+		// local tts is HeadTTS (Kokoro) — voice is a Kokoro voice id (e.g. af_bella, af_heart, am_fenrir)
 		tts: {
 			remote: false,
-			voice: 'en_US-hfc_female-medium',
+			voice: 'af_bella',
 			speed: 1,
 			volume: 1,
 			language: "en",
@@ -197,13 +197,6 @@ bus.resolve([
 			volume: 1,
 			language: "en",
 			trim: 0
-		},
-
-		// decorate entity with the ability to convert speech output to animated viseme performances
-		diarization: {
-			remote: false,
-			url: 'https://api.openai.com/v1/audio/speech',
-			bearer: '',
 		},
 
 	},

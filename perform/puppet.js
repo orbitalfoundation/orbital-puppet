@@ -34,8 +34,8 @@ function perform(volume,perform,time) {
 	if(perform.action) {
 	}
 
-	// rewrite the whisper timing to use current start time
-	volume.sequence = visemes_sequence(volume,perform.whisper,time)
+	// build the viseme sequence (HeadTTS lipsync data) anchored at the current start time
+	volume.sequence = visemes_sequence(volume,perform.lipsync,time)
 
 	// a test approach: set a time to be completed by
 	volume.relaxation = volume.sequence.length ? volume.sequence[volume.sequence.length-1].ts[1] : 0
@@ -105,8 +105,8 @@ async function resolve(blob) {
 		console.log("puppet relaxing due to bargein")
 	}
 
-	// start a performance if any
-	if(blob.puppetsync && !blob.puppetsync.human && blob.puppetsync.audio && blob.puppetsync.whisper) {
+	// start a performance if any (lipsync = HeadTTS visemes/timing rides along with the audio)
+	if(blob.puppetsync && !blob.puppetsync.human && blob.puppetsync.audio && blob.puppetsync.lipsync) {
 		rest(puppet.volume)
 		perform(puppet.volume,blob.puppetsync,time)
 	}
